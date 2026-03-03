@@ -1,0 +1,16 @@
+{
+  "name": "warehousebot-dev",
+  "dockerComposeFile": ["../docker-compose.yml"],
+  "service": "dev",
+  "workspaceFolder": "/workspaces/AutoWarehouseBot",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-iot.vscode-ros",
+        "ms-vscode.cpptools",
+        "ms-python.python"
+      ]
+    }
+  },
+  "postCreateCommand": "bash -lc 'cd ros2_ws || true; echo Dev container ready.'"
+}

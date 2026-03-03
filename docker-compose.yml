@@ -1,0 +1,19 @@
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: warehousebot_dev
+    network_mode: "host"
+    environment:
+      - ROS_DOMAIN_ID=42
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - DISPLAY
+      - WAYLAND_DISPLAY
+      - XDG_RUNTIME_DIR
+      - PULSE_SERVER
+    volumes:
+      - .:/workspaces/AutoWarehouseBot:cached
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    stdin_open: true
+    tty: true
