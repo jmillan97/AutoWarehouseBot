@@ -4,8 +4,8 @@
 ---
 
 ## ROS2 Distribution
-- **Distro:** ROS2 Humble
-- **OS:** Ubuntu 22.04 LTS
+- **Distro:** ROS2 Kilted
+- **OS:** Ubuntu 24.04 LTS
 - **`ROS_DOMAIN_ID`:** `42` (set in every machine's `.bashrc`)
 - **Sim time:** `use_sim_time: True` in sim, `False` on physical robot
 
@@ -112,3 +112,4 @@ For busy networks, set `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` for more reliable
 | Date | Change | Author |
 |---|---|---|
 | 03.02.2026 | Document created | Juan |
+| 03.02.2026 | Updated Linux Distro | Juan |
