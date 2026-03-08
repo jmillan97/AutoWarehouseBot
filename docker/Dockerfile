@@ -41,10 +41,14 @@ RUN pip3 install --break-system-packages --ignore-installed fastapi uvicorn pyda
 ENV ROS_DOMAIN_ID=42
 ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 
-# Source ROS2 base in every shell
 RUN echo "source /opt/ros/kilted/setup.bash" >> /etc/bash.bashrc
 
 # Source workspace if built (safe no-op if not built yet)
-RUN echo "if [ -f /workspaces/warehousebot/install/setup.bash ]; then source /workspaces/warehousebot/install/setup.bash; fi" >> /etc/bash.bashrc
+RUN echo "if [ -f /workspaces/AutoWarehouseBot/install/setup.bash ]; then source /workspaces/AutoWarehouseBot/install/setup.bash; fi" >> /etc/bash.bashrc
 
-WORKDIR /workspaces/warehousebot
+# Also source for ubuntu user specifically (compose runs as ubuntu not root)
+RUN echo "source /opt/ros/kilted/setup.bash" >> /home/ubuntu/.bashrc && \
+    echo "if [ -f /workspaces/AutoWarehouseBot/install/setup.bash ]; then source /workspaces/AutoWarehouseBot/install/setup.bash; fi" >> /home/ubuntu/.bashrc && \
+    echo "export ROS_DOMAIN_ID=42" >> /home/ubuntu/.bashrc && \
+    echo "export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp" >> /home/ubuntu/.bashrc
+WORKDIR /workspaces/AutoWarehouseBot

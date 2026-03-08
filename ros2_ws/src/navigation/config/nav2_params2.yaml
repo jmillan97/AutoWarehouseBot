@@ -1,0 +1,355 @@
+# nav2_params.yaml
+# =================
+# Nav2 parameter file for warehouse_bot.
+# Configured for: differential drive, 2D LiDAR, MPPI local planner.
+#
+# Key tuning variables are marked with [TUNE] — these are the ones
+# you will iterate on during weeks 5-7 of the build.
+#
+# Reference frames (must match interfaces.md):
+#   map -> odom -> base_link -> base_laser
+
+# ---------------------------------------------------------------------------
+# amcl — Adaptive Monte Carlo Localization
+# Runs on the saved classroom map. Disable if using Cartographer live SLAM.
+# ---------------------------------------------------------------------------
+amcl:
+  ros__parameters:
+    use_sim_time: True
+
+    # Particle filter settings
+    min_particles:       500
+    max_particles:       2000
+    alpha1:              0.2    # Rotation noise from rotation
+    alpha2:              0.2    # Rotation noise from translation
+    alpha3:              0.2    # Translation noise from translation
+    alpha4:              0.2    # Translation noise from rotation
+    alpha5:              0.2    # Translation noise (only for omni drive, ignored here)
+
+    # Laser model
+    laser_model_type:    "likelihood_field"
+    laser_max_range:     12.0
+    laser_min_range:     0.15
+    laser_likelihood_max_dist: 2.0
+    max_beams:           60     # [TUNE] More beams = more accurate but slower
+
+    # Update thresholds — only update filter if robot has moved enough
+    update_min_d:        0.25   # meters
+    update_min_a:        0.2    # radians
+
+    # Frame IDs — must match URDF and interfaces.md
+    base_frame_id:       "base_link"
+    odom_frame_id:       "odom"
+    global_frame_id:     "map"
+    scan_topic:          "scan"
+
+    # Recovery behavior: if localization is lost, expand particles
+    recovery_alpha_slow: 0.001
+    recovery_alpha_fast: 0.1
+
+# ---------------------------------------------------------------------------
+# bt_navigator — Behavior Tree Navigator
+# Orchestrates the overall navigation task.
+# ---------------------------------------------------------------------------
+bt_navigator:
+  ros__parameters:
+    use_sim_time:         True
+    global_frame:         "map"
+    robot_base_frame:     "base_link"
+    odom_topic:           "/odom"
+    bt_loop_duration:     10       # ms
+    default_server_timeout: 20     # s
+    # Default BT is sufficient for MVP — do not customize unless needed
+    default_nav_to_pose_bt_xml: ""
+    plugin_lib_names:
+      - nav2_compute_path_to_pose_action_bt_node
+      - nav2_follow_path_action_bt_node
+      - nav2_back_up_action_bt_node
+      - nav2_spin_action_bt_node
+      - nav2_wait_action_bt_node
+      - nav2_clear_costmap_service_bt_node
+      - nav2_is_stuck_condition_bt_node
+      - nav2_goal_reached_condition_bt_node
+      - nav2_goal_updated_condition_bt_node
+      - nav2_navigating_while_spinning_condition_bt_node
+      - nav2_initial_pose_received_condition_bt_node
+      - nav2_reinitialize_global_localization_service_bt_node
+      - nav2_rate_controller_bt_node
+      - nav2_distance_controller_bt_node
+      - nav2_speed_controller_bt_node
+      - nav2_truncate_path_action_bt_node
+      - nav2_recovery_node_bt_node
+      - nav2_pipeline_sequence_bt_node
+      - nav2_round_robin_node_bt_node
+      - nav2_transform_available_condition_bt_node
+      - nav2_time_expired_condition_bt_node
+      - nav2_path_expiring_timer_condition_bt_node
+      - nav2_distance_traveled_condition_bt_node
+      - nav2_single_trigger_bt_node
+
+# ---------------------------------------------------------------------------
+# controller_server — MPPI Local Planner
+# This is your core reactive navigation layer.
+# MPPI samples N trajectories forward, picks the lowest-cost one.
+# ---------------------------------------------------------------------------
+controller_server:
+  ros__parameters:
+    use_sim_time:         True
+    controller_frequency: 20.0   # Hz — how often MPPI runs
+
+    # Goal tolerance — how close is "arrived"
+    min_x_velocity_threshold:   0.001
+    min_y_velocity_threshold:   0.5
+    min_theta_velocity_threshold: 0.001
+    failure_tolerance:           0.3   # seconds before declaring failure
+
+    progress_checker_plugin: "progress_checker"
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.5   # m — must move this much within time
+      movement_time_allowance: 10.0   # s
+
+    goal_checker_plugins: ["goal_checker"]
+    goal_checker:
+      plugin: "nav2_controller::SimpleGoalChecker"
+      xy_goal_tolerance:    0.25    # [TUNE] meters — how close to goal XY
+      yaw_goal_tolerance:   0.25    # [TUNE] radians — final heading tolerance
+      stateful:             True
+
+    controller_plugins: ["FollowPath"]
+    FollowPath:
+      plugin: "nav2_mppi_controller::MPPIController"
+
+      # --- Trajectory sampling ---
+      time_steps:           56      # [TUNE] horizon steps (each = dt seconds ahead)
+      model_dt:             0.05    # seconds per step → 56 * 0.05 = 2.8s horizon
+      batch_size:           2000    # [TUNE] num trajectory samples — more = better but slower
+      vx_std:               0.2     # [TUNE] velocity exploration noise X
+      vy_std:               0.0     # 0 for differential drive (no lateral)
+      wz_std:               0.4     # [TUNE] angular velocity exploration noise
+
+      # --- Velocity limits [TUNE based on your actual bot] ---
+      vx_max:               0.5     # m/s max forward
+      vx_min:              -0.35    # m/s max reverse
+      vy_max:               0.0     # 0 for differential drive
+      wz_max:               1.9     # rad/s max rotation
+
+      # --- MPPI temperature (lower = more deterministic, higher = more exploration) ---
+      iteration_count:      1       # MPPI inner loop iterations
+      temperature:          0.3     # [TUNE] 0.1 = focused, 1.0 = exploratory
+
+      # --- Cost weights [TUNE these are your main tuning knobs] ---
+      # Higher weight = stronger influence on trajectory selection
+      PathFollowCritic:
+        enabled:            True
+        cost_power:         1
+        cost_weight:        5.0     # [TUNE] how hard to follow the global path
+
+      GoalCritic:
+        enabled:            True
+        cost_power:         1
+        cost_weight:        5.0
+        threshold_to_consider: 1.4  # m — activate when within this distance of goal
+
+      GoalAngleCritic:
+        enabled:            True
+        cost_power:         1
+        cost_weight:        3.0     # [TUNE] final heading alignment weight
+        threshold_to_consider: 0.5
+
+      ObstaclesCritic:
+        enabled:            True
+        cost_power:         1
+        repulsion_weight:   1.5     # [TUNE] how hard to avoid costmap obstacles
+        critical_weight:    20.0    # [TUNE] collision penalty — keep this high
+        consider_footprint: False   # True = use full footprint (slower)
+        collision_cost:     10000.0
+        collision_margin_distance: 0.1
+        near_goal_distance: 0.5
+
+      PathAngleCritic:
+        enabled:            True
+        cost_power:         1
+        cost_weight:        2.0
+        max_angle_to_furthest_point: 0.785  # 45 degrees
+
+      # Visualize MPPI trajectories in RViz (useful for debugging)
+      visualize:            True
+      TrajectoryVisualizer:
+        trajectory_step:    5
+        time_step:          3
+
+# ---------------------------------------------------------------------------
+# planner_server — Global Path Planner
+# Using Smac Planner 2D (better than A* for indoor structured environments)
+# ---------------------------------------------------------------------------
+planner_server:
+  ros__parameters:
+    use_sim_time:         True
+    planner_plugins:      ["GridBased"]
+    GridBased:
+      plugin: "nav2_smac_planner/SmacPlanner2D"
+      tolerance:          0.5     # [TUNE] goal tolerance for planning
+      downsample_costmap:  False
+      downsampling_factor: 1
+      allow_unknown:       True   # Allow planning through unknown space
+      max_iterations:      1000000
+      max_on_approach_iterations: 1000
+      max_planning_time:   2.0    # seconds
+      cost_travel_multiplier: 2.0
+      use_final_approach_orientation: False
+      smoother:
+        max_iterations:    1000
+        w_smooth:          0.3
+        w_data:            0.2
+        tolerance:         1.0e-10
+
+# ---------------------------------------------------------------------------
+# behavior_server — Recovery Behaviors
+# What the robot does when it gets stuck.
+# ---------------------------------------------------------------------------
+behavior_server:
+  ros__parameters:
+    use_sim_time:           True
+    costmap_topic:          local_costmap/costmap_raw
+    footprint_topic:        local_costmap/published_footprint
+    cycle_frequency:        10.0
+    behavior_plugins:       ["spin", "back_up", "wait"]
+
+    spin:
+      plugin: "nav2_behaviors/Spin"
+    back_up:
+      plugin: "nav2_behaviors/BackUp"
+    wait:
+      plugin: "nav2_behaviors/Wait"
+
+    global_frame:           "odom"
+    robot_base_frame:       "base_link"
+    transform_tolerance:    0.1
+    simulate_ahead_time:    2.0
+    max_rotational_vel:     1.0    # [TUNE] max spin speed during recovery
+    min_rotational_vel:     0.4
+    rotational_acc_lim:     3.2
+
+# ---------------------------------------------------------------------------
+# local_costmap — Reactive obstacle avoidance
+# Updated at high frequency from LiDAR + camera obstacle data.
+# ---------------------------------------------------------------------------
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      use_sim_time:         True
+      update_frequency:     10.0   # Hz
+      publish_frequency:    5.0    # Hz
+      global_frame:         "odom"
+      robot_base_frame:     "base_link"
+      rolling_window:       True
+      width:                4.0    # meters — local window size
+      height:               4.0
+      resolution:           0.05   # 5cm per cell [TUNE]
+
+      # [TUNE] robot_radius determines inflation — measure actual chassis diagonal / 2
+      robot_radius:         0.3    # meters
+
+      plugins: ["voxel_layer", "inflation_layer"]
+
+      voxel_layer:
+        plugin:             "nav2_costmap_2d::VoxelLayer"
+        enabled:            True
+        publish_voxel_map:  True
+        origin_z:           0.0
+        z_resolution:       0.05
+        z_voxels:           16
+        max_obstacle_height: 2.0
+        mark_threshold:     0
+        observation_sources: scan
+        scan:
+          topic:            /scan
+          max_obstacle_height: 2.0
+          clearing:         True
+          marking:          True
+          data_type:        "LaserScan"
+          raytrace_max_range: 3.0
+          raytrace_min_range: 0.0
+          obstacle_max_range: 2.5
+          obstacle_min_range: 0.0
+
+      inflation_layer:
+        plugin:             "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0   # [TUNE] higher = tighter around obstacles
+        inflation_radius:   0.55   # [TUNE] meters — must be > robot_radius
+
+      always_send_full_costmap: True
+
+# ---------------------------------------------------------------------------
+# global_costmap — Static map + obstacle overlay for global planning
+# ---------------------------------------------------------------------------
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      use_sim_time:         True
+      update_frequency:     1.0    # Hz — slower, map doesn't change often
+      publish_frequency:    1.0
+      global_frame:         "map"
+      robot_base_frame:     "base_link"
+      robot_radius:         0.3    # [TUNE] must match local_costmap
+
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+
+      static_layer:
+        plugin:             "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: True
+
+      obstacle_layer:
+        plugin:             "nav2_costmap_2d::ObstacleLayer"
+        enabled:            True
+        observation_sources: scan
+        scan:
+          topic:            /scan
+          max_obstacle_height: 2.0
+          clearing:         True
+          marking:          True
+          data_type:        "LaserScan"
+          raytrace_max_range: 3.0
+          obstacle_max_range: 2.5
+
+      inflation_layer:
+        plugin:             "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius:   0.55
+
+      always_send_full_costmap: True
+
+# ---------------------------------------------------------------------------
+# map_server — Serves the pre-built static map
+# ---------------------------------------------------------------------------
+map_server:
+  ros__parameters:
+    use_sim_time: True
+    yaml_filename: ""   # Set via launch argument
+
+# ---------------------------------------------------------------------------
+# map_saver — Used when building the map with Cartographer
+# ---------------------------------------------------------------------------
+map_saver:
+  ros__parameters:
+    use_sim_time:     True
+    save_map_timeout: 5.0
+    free_thresh_default:    0.25
+    occupied_thresh_default: 0.65
+    map_subscribe_transient_local: True
+
+# ---------------------------------------------------------------------------
+# lifecycle_manager — Manages Nav2 node lifecycle
+# ---------------------------------------------------------------------------
+lifecycle_manager:
+  ros__parameters:
+    use_sim_time:    True
+    autostart:       True
+    node_names:
+      - map_server
+      - amcl
+      - controller_server
+      - planner_server
+      - behavior_server
+      - bt_navigator
