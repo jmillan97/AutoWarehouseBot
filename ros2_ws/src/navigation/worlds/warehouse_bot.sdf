@@ -1,0 +1,341 @@
+<?xml version="1.0" ?>
+<!--
+  warehouse_bot.sdf
+  =================
+  Gazebo Ionic (Harmonic) model for warehouse delivery bot.
+  Matches URDF geometry exactly so TF frames stay consistent.
+
+  Model name: warehouse_bot
+  Topics (Gazebo side):
+    /model/warehouse_bot/cmd_vel      — receives Twist from bridge
+    /model/warehouse_bot/odometry     — publishes Odometry to bridge
+    /model/warehouse_bot/scan         — publishes LaserScan to bridge
+    /model/warehouse_bot/tf           — publishes TF to bridge
+-->
+<sdf version="1.8">
+  <world name="warehouse_world">
+
+    <!-- Physics -->
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <!-- Required Gazebo plugins -->
+    <plugin filename="gz-sim-physics-system"
+            name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system"
+            name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system"
+            name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system"
+            name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-contact-system"
+            name="gz::sim::systems::Contact"/>
+
+    <!-- Lighting -->
+    <light name="sun" type="directional">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!-- Ground plane -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="surface">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>20 20</size>
+            </plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>20 20</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.8 0.8 0.8 1</ambient>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ================================================================
+         Warehouse Bot Model
+         Matches URDF: chassis 0.4x0.3x0.15, wheels r=0.05, base_laser at z=0.25
+         ================================================================ -->
+    <model name="warehouse_bot">
+      <pose>0 0 0.05 0 0 0</pose>
+
+      <!-- ---- Chassis (base_link) ---- -->
+      <link name="base_link">
+        <pose>0 0 0.075 0 0 0</pose>
+        <inertial>
+          <mass>5.0</mass>
+          <inertia>
+            <ixx>0.043</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>0.069</iyy><iyz>0</iyz>
+            <izz>0.106</izz>
+          </inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry>
+            <box><size>0.4 0.3 0.15</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>0.4 0.3 0.15</size></box>
+          </geometry>
+          <material>
+            <ambient>0.1 0.4 0.8 1</ambient>
+            <diffuse>0.1 0.4 0.8 1</diffuse>
+          </material>
+        </visual>
+      </link>
+
+      <!-- ---- Left Wheel ---- -->
+      <link name="left_wheel_link">
+        <pose>0 0.17 0.05 1.5707 0 0</pose>
+        <inertial>
+          <mass>0.5</mass>
+          <inertia>
+            <ixx>0.001</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>0.001</iyy><iyz>0</iyz>
+            <izz>0.001</izz>
+          </inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry>
+            <cylinder><radius>0.05</radius><length>0.04</length></cylinder>
+          </geometry>
+          <surface>
+            <friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <cylinder><radius>0.05</radius><length>0.04</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.2 0.2 0.2 1</ambient>
+            <diffuse>0.2 0.2 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+
+      <joint name="left_wheel_joint" type="revolute">
+        <parent>base_link</parent>
+        <child>left_wheel_link</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit><lower>-1e+16</lower><upper>1e+16</upper></limit>
+        </axis>
+      </joint>
+
+      <!-- ---- Right Wheel ---- -->
+      <link name="right_wheel_link">
+        <pose>0 -0.17 0.05 1.5707 0 0</pose>
+        <inertial>
+          <mass>0.5</mass>
+          <inertia>
+            <ixx>0.001</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>0.001</iyy><iyz>0</iyz>
+            <izz>0.001</izz>
+          </inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry>
+            <cylinder><radius>0.05</radius><length>0.04</length></cylinder>
+          </geometry>
+          <surface>
+            <friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <cylinder><radius>0.05</radius><length>0.04</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.2 0.2 0.2 1</ambient>
+            <diffuse>0.2 0.2 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+
+      <joint name="right_wheel_joint" type="revolute">
+        <parent>base_link</parent>
+        <child>right_wheel_link</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit><lower>-1e+16</lower><upper>1e+16</upper></limit>
+        </axis>
+      </joint>
+
+      <!-- ---- Front Caster ---- -->
+      <link name="front_caster_link">
+        <pose>0.175 0 0.025 0 0 0</pose>
+        <inertial>
+          <mass>0.1</mass>
+          <inertia>
+            <ixx>0.00001</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>0.00001</iyy><iyz>0</iyz>
+            <izz>0.00001</izz>
+          </inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry><sphere><radius>0.025</radius></sphere></geometry>
+          <surface>
+            <friction><ode><mu>0.0</mu><mu2>0.0</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry><sphere><radius>0.025</radius></sphere></geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 1</ambient>
+            <diffuse>0.5 0.5 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+
+      <joint name="front_caster_joint" type="ball">
+        <parent>base_link</parent>
+        <child>front_caster_link</child>
+      </joint>
+
+      <!-- ---- Rear Caster ---- -->
+      <link name="rear_caster_link">
+        <pose>-0.175 0 0.025 0 0 0</pose>
+        <inertial>
+          <mass>0.1</mass>
+          <inertia>
+            <ixx>0.00001</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>0.00001</iyy><iyz>0</iyz>
+            <izz>0.00001</izz>
+          </inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry><sphere><radius>0.025</radius></sphere></geometry>
+          <surface>
+            <friction><ode><mu>0.0</mu><mu2>0.0</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry><sphere><radius>0.025</radius></sphere></geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 1</ambient>
+            <diffuse>0.5 0.5 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+
+      <joint name="rear_caster_joint" type="ball">
+        <parent>base_link</parent>
+        <child>rear_caster_link</child>
+      </joint>
+
+      <!-- ---- LiDAR Link (base_laser) ---- -->
+      <link name="base_laser">
+        <pose>0 0 0.25 0 0 0</pose>
+        <inertial>
+          <mass>0.1</mass>
+          <inertia>
+            <ixx>0.001</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>0.001</iyy><iyz>0</iyz>
+            <izz>0.001</izz>
+          </inertia>
+        </inertial>
+        <visual name="visual">
+          <geometry>
+            <cylinder><radius>0.05</radius><length>0.07</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.1 0.1 0.1 1</ambient>
+            <diffuse>0.1 0.1 0.1 1</diffuse>
+          </material>
+        </visual>
+
+        <!-- 2D LiDAR sensor -->
+        <sensor name="lidar" type="gpu_lidar">
+          <pose>0 0 0 0 0 0</pose>
+          <always_on>true</always_on>
+          <update_rate>10</update_rate>
+          <visualize>true</visualize>
+          <topic>/model/warehouse_bot/scan</topic>
+          <frame_id>base_laser</frame_id>
+          <lidar>
+            <scan>
+              <horizontal>
+                <samples>360</samples>
+                <resolution>1</resolution>
+                <min_angle>-3.14159</min_angle>
+                <max_angle>3.14159</max_angle>
+              </horizontal>
+            </scan>
+            <range>
+              <min>0.15</min>
+              <max>12.0</max>
+              <resolution>0.01</resolution>
+            </range>
+            <noise>
+              <type>gaussian</type>
+              <mean>0.0</mean>
+              <stddev>0.01</stddev>
+            </noise>
+          </lidar>
+        </sensor>
+      </link>
+
+      <joint name="lidar_joint" type="fixed">
+        <parent>base_link</parent>
+        <child>base_laser</child>
+      </joint>
+
+      <!-- ================================================================
+           Diff Drive Plugin
+           Listens to /model/warehouse_bot/cmd_vel
+           Publishes /model/warehouse_bot/odometry
+           Publishes /model/warehouse_bot/tf
+           ================================================================ -->
+      <plugin filename="gz-sim-diff-drive-system"
+              name="gz::sim::systems::DiffDrive">
+        <left_joint>left_wheel_joint</left_joint>
+        <right_joint>right_wheel_joint</right_joint>
+        <wheel_separation>0.34</wheel_separation>
+        <wheel_radius>0.05</wheel_radius>
+        <odom_publish_frequency>30</odom_publish_frequency>
+        <topic>/model/warehouse_bot/cmd_vel</topic>
+        <odom_topic>/model/warehouse_bot/odometry</odom_topic>
+        <tf_topic>/model/warehouse_bot/tf</tf_topic>
+        <frame_id>odom</frame_id>
+        <child_frame_id>base_link</child_frame_id>
+        <max_linear_acceleration>1.0</max_linear_acceleration>
+      </plugin>
+
+      <!-- Joint state publisher -->
+      <plugin filename="gz-sim-joint-state-publisher-system"
+              name="gz::sim::systems::JointStatePublisher">
+        <topic>/model/warehouse_bot/joint_states</topic>
+      </plugin>
+
+    </model>
+
+  </world>
+</sdf>

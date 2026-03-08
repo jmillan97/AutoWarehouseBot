@@ -7,6 +7,7 @@ install(DIRECTORY
   launch
   config
   maps
+  worlds
   DESTINATION share/${PROJECT_NAME}
 )
 
