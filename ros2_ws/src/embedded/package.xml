@@ -2,15 +2,21 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>embedded</name>
-  <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="jmillan1997@gmail.com">Juan Millan</maintainer>
-  <license>TODO: License declaration</license>
+  <version>0.1.0</version>
+  <description>
+    Embedded bridge nodes — Arduino interface, sensor drivers, 
+    odometry, and EKF launch for warehouse bot.
+  </description>
+  <maintainer email="jmillan1997@email.com">Juan Millan</maintainer>
+  <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <test_depend>ament_lint_auto</test_depend>
-  <test_depend>ament_lint_common</test_depend>
+  <depend>rclcpp</depend>
+  <depend>nav_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>tf2_ros</depend>
+  <exec_depend>robot_localization</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
