@@ -16,22 +16,35 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Initialize rosdep (safe even if already initialized)
 RUN rosdep init || true && rosdep update
 
-# Nav + SLAM toolbox
+# Nav + SLAM
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-kilted-rmw-cyclonedds-cpp \
     ros-kilted-navigation2 \
     ros-kilted-nav2-bringup \
     ros-kilted-slam-toolbox \
+    ros-kilted-cartographer-ros \
+    ros-kilted-robot-localization \
+    ros-kilted-xacro \
+    ros-kilted-joint-state-publisher \
+    ros-kilted-tf2-tools \
     && rm -rf /var/lib/apt/lists/*
 
-# Gazebo (Gazebo Sim + ROS integration).
-# Kilted recommends Gazebo "Ionic" as the matching Gazebo release line. :contentReference[oaicite:4]{index=4}
-# Package names can vary by distro; ros_gz is the key integration layer.
+# Gazebo Ionic + ROS integration
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-kilted-ros-gz \
     && rm -rf /var/lib/apt/lists/*
 
-# Common QoL: source ROS automatically
+# Python deps for summon server
+RUN pip3 install --break-system-packages --ignore-installed fastapi uvicorn pydantic
+
+# Environment
+ENV ROS_DOMAIN_ID=42
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+
+# Source ROS2 base in every shell
 RUN echo "source /opt/ros/kilted/setup.bash" >> /etc/bash.bashrc
+
+# Source workspace if built (safe no-op if not built yet)
+RUN echo "if [ -f /workspaces/warehousebot/install/setup.bash ]; then source /workspaces/warehousebot/install/setup.bash; fi" >> /etc/bash.bashrc
 
 WORKDIR /workspaces/warehousebot
