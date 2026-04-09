@@ -15,20 +15,10 @@ find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 
-# ---- fake_odometry ----
-add_executable(fake_odometry src/fake_odometry.cpp)
-target_link_libraries(fake_odometry PUBLIC
-  rclcpp::rclcpp
-  ${nav_msgs_TARGETS}
-  ${geometry_msgs_TARGETS}
-  tf2_ros::tf2_ros
-)
-
-install(TARGETS
-  fake_odometry
-  DESTINATION lib/${PROJECT_NAME}
-)
-
+# serial bridge
+add_executable(serial_bridge src/serial_bridge.cpp)
+ament_target_dependencies(serial_bridge rclcpp geometry_msgs std_msgs)
+install(TARGETS serial_bridge DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY
   launch
   config
