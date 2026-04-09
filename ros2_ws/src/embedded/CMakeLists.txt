@@ -24,5 +24,8 @@ install(DIRECTORY
   config
   DESTINATION share/${PROJECT_NAME}
 )
+add_executable(wheel_odometry src/wheel_odometry.cpp)
+ament_target_dependencies(wheel_odometry rclcpp std_msgs nav_msgs geometry_msgs tf2 tf2_ros)
+install(TARGETS wheel_odometry DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
