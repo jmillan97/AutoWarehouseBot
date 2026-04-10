@@ -1,22 +1,5 @@
-services:
 
-  # ── FastDDS Discovery Server ─────────────────────────────────────────────────
-  # Replaces DDS multicast so nodes find each other over Tailscale.
-  # Run ONLY on Felix's laptop (100.114.38.65) — NOT on the Pi or groupmates.
-  #
-  # Usage: docker compose --profile discovery up discovery
-  # ────────────────────────────────────────────────────────────────────────────
-  discovery:
-    profiles: ["discovery"]
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
-    container_name: warehousebot_discovery
-    network_mode: "host"
-    environment:
-      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-    command: fastdds discovery -i 0 -l 100.114.38.65 -p 11811
-    restart: unless-stopped
+services:
 
   # ── Robot profile — Raspberry Pi ─────────────────────────────────────────────
   # Runs hardware-facing nodes: embedded (odometry/motors) + perception (sensors).
@@ -38,13 +21,13 @@ services:
       # This does NOT need to change for groupmates — they connect to the same server.
       # To add a groupmate as a compute node: they just need Tailscale + Docker,
       # then run: docker compose --profile compute up
-      - ROS_DISCOVERY_SERVER=100.114.38.65:11811
+      - ROS_DISCOVERY_SERVER=100.91.37.52:11811
     volumes:
       - .:/workspaces/AutoWarehouseBot:cached
     command: >
       bash -c "source /opt/ros/kilted/setup.bash &&
                source /workspaces/AutoWarehouseBot/install/setup.bash &&
-               ros2 launch wb_navigation nav2.launch.py"
+               ros2 launch navigation nav2.launch.py"
     stdin_open: true
     tty: true
 
@@ -67,7 +50,7 @@ services:
     environment:
       - ROS_DOMAIN_ID=42
       - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-      - ROS_DISCOVERY_SERVER=100.114.38.65:11811
+      - ROS_DISCOVERY_SERVER=100.91.37.52:11811
       - DISPLAY
       - WAYLAND_DISPLAY
       - XDG_RUNTIME_DIR
@@ -80,7 +63,7 @@ services:
     command: >
       bash -c "source /opt/ros/kilted/setup.bash &&
                source /workspaces/AutoWarehouseBot/install/setup.bash &&
-               ros2 launch wb_navigation nav2.launch.py use_rviz:=true"
+               ros2 launch navigation hardware.launch.py use_rviz:=true"
     stdin_open: true
     tty: true
 
@@ -101,7 +84,7 @@ services:
     environment:
       - ROS_DOMAIN_ID=42
       - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-      - ROS_DISCOVERY_SERVER=100.114.38.65:11811
+      - ROS_DISCOVERY_SERVER=100.91.37.52:11811
       - DISPLAY
       - WAYLAND_DISPLAY
       - XDG_RUNTIME_DIR
@@ -112,7 +95,7 @@ services:
     command: >
       bash -c "source /opt/ros/kilted/setup.bash &&
                source /workspaces/AutoWarehouseBot/install/setup.bash &&
-               ros2 launch wb_navigation gazebo.launch.py use_rviz:=true"
+               ros2 launch navigation gazebo.launch.py use_rviz:=true"
     stdin_open: true
     tty: true
 
@@ -133,7 +116,7 @@ services:
     environment:
       - ROS_DOMAIN_ID=42
       - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-      - ROS_DISCOVERY_SERVER=100.114.38.65:11811
+      - ROS_DISCOVERY_SERVER=100.91.37.52:11811
       - DISPLAY
       - WAYLAND_DISPLAY
       - XDG_RUNTIME_DIR
@@ -143,3 +126,23 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix
     stdin_open: true
     tty: true
+
+  # ── Visualization Bridge ───────────────────────────────────────────────────
+  # Bridges ROS2 topics to the Foxglove Studio Windows app.
+  # ────────────────────────────────────────────────────────────────────────────
+  foxglove:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: warehousebot_foxglove
+    ports:
+      - "8765:8765"
+    environment:
+      - ROS_DOMAIN_ID=42
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      - ROS_DISCOVERY_SERVER=100.91.37.52:11811
+    command: >
+      bash -c "source /opt/ros/kilted/setup.bash &&
+               if [ -f /workspaces/AutoWarehouseBot/install/setup.bash ]; then source /workspaces/AutoWarehouseBot/install/setup.bash; fi &&
+               ros2 launch foxglove_bridge foxglove_bridge_launch.xml port:=8765 address:=0.0.0.0"
+    restart: unless-stopped
