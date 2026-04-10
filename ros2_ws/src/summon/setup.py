@@ -10,6 +10,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name, ['config/landmarks.yaml']),
     ],
     package_data={'': ['py.typed']},
     install_requires=['setuptools'],
@@ -25,6 +26,10 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'summon_node = summon.summon_node:main',
+            'summon_server = summon.summon_server:main',
+            'ble_tracker = summon.ble_tracker:main',
+            'aruco_node = summon.aruco_node:main'
         ],
     },
 )

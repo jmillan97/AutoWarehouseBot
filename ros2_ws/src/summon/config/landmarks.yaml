@@ -1,0 +1,10 @@
+# ArUco Landmark Database
+# Format:
+# marker_id: [x, y, yaw_degrees]
+# ID must match the printed 6x6 marker dictionary tag ID.
+# (x, y) are coordinates in the 'map' frame.
+
+# Siegel Hall 3rd Floor - Hallway markers (Example)
+101: [2.5, 4.0, 0.0]
+102: [8.2, -1.5, 90.0]
+103: [-3.0, 2.8, -45.0]

@@ -18,12 +18,13 @@ RUN rosdep init || true && rosdep update
 
 # Nav + SLAM
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ros-kilted-rmw-cyclonedds-cpp \
+    ros-kilted-rmw-fastrtps-cpp \
     ros-kilted-navigation2 \
     ros-kilted-nav2-bringup \
     ros-kilted-slam-toolbox \
     ros-kilted-cartographer-ros \
     ros-kilted-robot-localization \
+    ros-kilted-foxglove-bridge \
     ros-kilted-xacro \
     ros-kilted-joint-state-publisher \
     ros-kilted-tf2-tools \
@@ -39,7 +40,8 @@ RUN pip3 install --break-system-packages --ignore-installed fastapi uvicorn pyda
 
 # Environment
 ENV ROS_DOMAIN_ID=42
-ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+ENV RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+ENV ROS_DISCOVERY_SERVER=100.114.38.65:11811
 
 RUN echo "source /opt/ros/kilted/setup.bash" >> /etc/bash.bashrc
 
@@ -50,5 +52,6 @@ RUN echo "if [ -f /workspaces/AutoWarehouseBot/install/setup.bash ]; then source
 RUN echo "source /opt/ros/kilted/setup.bash" >> /home/ubuntu/.bashrc && \
     echo "if [ -f /workspaces/AutoWarehouseBot/install/setup.bash ]; then source /workspaces/AutoWarehouseBot/install/setup.bash; fi" >> /home/ubuntu/.bashrc && \
     echo "export ROS_DOMAIN_ID=42" >> /home/ubuntu/.bashrc && \
-    echo "export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp" >> /home/ubuntu/.bashrc
+    echo "export RMW_IMPLEMENTATION=rmw_fastrtps_cpp" >> /home/ubuntu/.bashrc && \
+    echo "export ROS_DISCOVERY_SERVER=100.114.38.65:11811" >> /home/ubuntu/.bashrc
 WORKDIR /workspaces/AutoWarehouseBot

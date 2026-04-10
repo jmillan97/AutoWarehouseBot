@@ -1,7 +1,7 @@
 /*
  * wheel_odometry.cpp
  * ==================
- * Raspberry Pi ROS2 node (wb_embedded package)
+ * Raspberry Pi ROS2 node (embedded package)
  *
  * Subscribes to /left_ticks and /right_ticks published by serial_bridge,
  * computes wheel odometry, and publishes:
