@@ -44,9 +44,9 @@ class ImuNode(Node):
         self.declare_parameter('publish_rate', 50)
         self.declare_parameter('ini_file', '/home/ece_441/RTIMULib.ini')
 
-        self.frame_id    = self.get_parameter('imu_frame_id').as_string()
-        self.rate        = self.get_parameter('publish_rate').as_int()
-        ini_file         = self.get_parameter('ini_file').as_string()
+        self.frame_id = self.get_parameter('imu_frame_id').value
+        self.rate     = self.get_parameter('publish_rate').value
+        ini_file      = self.get_parameter('ini_file').value
 
         # ---- RTIMULib setup ----
         ini_dir  = os.path.dirname(ini_file)
