@@ -1,6 +1,11 @@
 # =============================================================================
-# .gitignore — ROS2 C++ Workspace (warehouse_bot_ws)
+# .gitignore â€” ROS2 C++ Workspace (warehouse_bot_ws)
 # =============================================================================
+
+# -----------------------------------------------------------------------------
+# Private planning docs (local only, not for group)
+# -----------------------------------------------------------------------------
+planning/
 
 # -----------------------------------------------------------------------------
 # ROS2 Build System
@@ -21,7 +26,7 @@ CMakeScripts/
 cmake_install.cmake
 Makefile
 *.cmake
-!**/CMakeLists.txt        # Keep your actual CMakeLists — only ignore generated ones
+!**/CMakeLists.txt        # Keep your actual CMakeLists ï¿½ only ignore generated ones
 
 # -----------------------------------------------------------------------------
 # C++ compiled artifacts
@@ -51,7 +56,7 @@ dist/
 .mypy_cache/
 
 # -----------------------------------------------------------------------------
-# IDE / Editor — VS Code
+# IDE / Editor ï¿½ VS Code
 # -----------------------------------------------------------------------------
 .vscode/
 .vs/                     
@@ -62,14 +67,14 @@ dist/
 !.vscode/c_cpp_properties.json
 
 # -----------------------------------------------------------------------------
-# IDE — CLion / JetBrains
+# IDE ï¿½ CLion / JetBrains
 # -----------------------------------------------------------------------------
 .idea/
 *.iml
 cmake-build-*/
 
 # -----------------------------------------------------------------------------
-# IDE — Eclipse / CDT
+# IDE ï¿½ Eclipse / CDT
 # -----------------------------------------------------------------------------
 .cproject
 .project
@@ -136,7 +141,7 @@ maps/test_*
 *~
 
 # -----------------------------------------------------------------------------
-# Environment / secrets — CRITICAL
+# Environment / secrets ï¿½ CRITICAL
 # Never commit credentials, keys, or env files
 # -----------------------------------------------------------------------------
 .env

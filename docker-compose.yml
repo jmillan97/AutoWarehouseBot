@@ -1,5 +1,129 @@
 services:
+
+  # ── FastDDS Discovery Server ─────────────────────────────────────────────────
+  # Replaces DDS multicast so nodes find each other over Tailscale.
+  # Run ONLY on Felix's laptop (100.114.38.65) — NOT on the Pi or groupmates.
+  #
+  # Usage: docker compose --profile discovery up discovery
+  # ────────────────────────────────────────────────────────────────────────────
+  discovery:
+    profiles: ["discovery"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: warehousebot_discovery
+    network_mode: "host"
+    environment:
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+    command: fastdds discovery -i 0 -l 100.114.38.65 -p 11811
+    restart: unless-stopped
+
+  # ── Robot profile — Raspberry Pi ─────────────────────────────────────────────
+  # Runs hardware-facing nodes: embedded (odometry/motors) + perception (sensors).
+  # Nav2 and AI run on laptops and receive sensor data over Tailscale.
+  #
+  # Usage on Pi: docker compose --profile robot up
+  # ────────────────────────────────────────────────────────────────────────────
+  robot:
+    profiles: ["robot"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: warehousebot_robot
+    network_mode: "host"
+    environment:
+      - ROS_DOMAIN_ID=42
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      # Felix's laptop runs the discovery server on Tailscale.
+      # This does NOT need to change for groupmates — they connect to the same server.
+      # To add a groupmate as a compute node: they just need Tailscale + Docker,
+      # then run: docker compose --profile compute up
+      - ROS_DISCOVERY_SERVER=100.114.38.65:11811
+    volumes:
+      - .:/workspaces/AutoWarehouseBot:cached
+    command: >
+      bash -c "source /opt/ros/kilted/setup.bash &&
+               source /workspaces/AutoWarehouseBot/install/setup.bash &&
+               ros2 launch wb_navigation nav2.launch.py"
+    stdin_open: true
+    tty: true
+
+  # ── Compute profile — Laptops (Felix + groupmates) ───────────────────────────
+  # Runs heavy compute: Nav2 global planner, YOLO, summon decision-making, RViz.
+  # Any groupmate on Tailscale can be a compute node — just clone the repo and run.
+  #
+  # Felix's laptop:    docker compose --profile discovery --profile compute up
+  # Groupmate laptops: docker compose --profile compute up
+  #   (groupmates point at Felix's discovery server — no other setup needed)
+  # ────────────────────────────────────────────────────────────────────────────
+  compute:
+    profiles: ["compute"]
+    user: ubuntu
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: warehousebot_compute
+    network_mode: "host"
+    environment:
+      - ROS_DOMAIN_ID=42
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      - ROS_DISCOVERY_SERVER=100.114.38.65:11811
+      - DISPLAY
+      - WAYLAND_DISPLAY
+      - XDG_RUNTIME_DIR
+      - PULSE_SERVER
+    volumes:
+      - .:/workspaces/AutoWarehouseBot:cached
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    # TODO: replace with a dedicated compute launch file once nav2 + YOLO +
+    # summon are split into their own launch target (separate from robot nodes).
+    command: >
+      bash -c "source /opt/ros/kilted/setup.bash &&
+               source /workspaces/AutoWarehouseBot/install/setup.bash &&
+               ros2 launch wb_navigation nav2.launch.py use_rviz:=true"
+    stdin_open: true
+    tty: true
+
+  # ── Simulation profile — Full sim, no Pi needed ──────────────────────────────
+  # Runs Gazebo + fake sensors + Nav2 + RViz all on one laptop.
+  # Use this when developing without access to the physical robot.
+  #
+  # Usage: docker compose --profile discovery --profile sim up
+  # ────────────────────────────────────────────────────────────────────────────
+  sim:
+    profiles: ["sim"]
+    user: ubuntu
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: warehousebot_sim
+    network_mode: "host"
+    environment:
+      - ROS_DOMAIN_ID=42
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      - ROS_DISCOVERY_SERVER=100.114.38.65:11811
+      - DISPLAY
+      - WAYLAND_DISPLAY
+      - XDG_RUNTIME_DIR
+      - PULSE_SERVER
+    volumes:
+      - .:/workspaces/AutoWarehouseBot:cached
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    command: >
+      bash -c "source /opt/ros/kilted/setup.bash &&
+               source /workspaces/AutoWarehouseBot/install/setup.bash &&
+               ros2 launch wb_navigation gazebo.launch.py use_rviz:=true"
+    stdin_open: true
+    tty: true
+
+  # ── Dev shell — interactive development ──────────────────────────────────────
+  # General purpose container for building, running ad-hoc commands, debugging.
+  # Does NOT start any ROS2 nodes automatically.
+  #
+  # Usage: docker compose run --rm dev bash
+  # ────────────────────────────────────────────────────────────────────────────
   dev:
+    profiles: ["dev"]
     user: ubuntu
     build:
       context: .
@@ -8,7 +132,8 @@ services:
     network_mode: "host"
     environment:
       - ROS_DOMAIN_ID=42
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      - ROS_DISCOVERY_SERVER=100.114.38.65:11811
       - DISPLAY
       - WAYLAND_DISPLAY
       - XDG_RUNTIME_DIR
