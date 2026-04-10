@@ -51,7 +51,7 @@ def generate_launch_description():
 
     args = [
         DeclareLaunchArgument('serial_port',  default_value='/dev/ttyUSB0'),
-        DeclareLaunchArgument('serial_baud',  default_value='9600'),
+        DeclareLaunchArgument('serial_baud',  default_value='115200'),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
     ]
 
