@@ -5,23 +5,24 @@ Physical hardware bringup launch file — runs on the Raspberry Pi.
 This is the hardware equivalent of gazebo.launch.py.
 
 Starts:
-  1. RPLidar A1 driver         → publishes /scan
-  2. serial_bridge node        → bridges Arduino serial ↔ /left_ticks, /right_ticks, /cmd_vel
+  1. RPLidar A1 driver         → publishes /scan          (/dev/ttyUSB1)
+  2. serial_bridge node        → bridges Arduino serial    (/dev/ttyUSB0)
   3. wheel_odometry node       → computes /odom from encoder ticks
   4. robot_state_publisher     → URDF + static TF transforms
-  5. EKF node                  → fuses /odom + /imu/data → best pose estimate
+  5. EKF node                  → fuses /odom + /imu/data
+  6. usb_cam node              → publishes /camera/image_raw
 
 Does NOT start on Pi (runs on offboard PC):
   - Nav2 (AMCL, planner, MPPI controller)
   - SLAM / Cartographer
 
 Usage (on Pi):
-  ros2 launch wb_embedded robot_bringup.launch.py
+  ros2 launch embedded robot_bringup.launch.py
 
   Optional args:
-    serial_port:=/dev/ttyUSB0   (default)
-    serial_baud:=115200          (default)
-    use_sim_time:=false          (default — always false on real hardware)
+    serial_port:=/dev/ttyUSB0   (Arduino, default)
+    serial_baud:=9600            (default)
+    use_sim_time:=false          (always false on real hardware)
 """
 
 import os
@@ -36,16 +37,16 @@ from launch_ros.parameter_descriptions import ParameterValue
 def generate_launch_description():
 
     # ---- Package directories ----
-    wb_embedded_dir    = get_package_share_directory('wb_embedded')
-    wb_description_dir = get_package_share_directory('wb_description')
+    embedded_dir    = get_package_share_directory('embedded')
+    description_dir = get_package_share_directory('description')
 
     # ---- File paths ----
-    urdf_file   = os.path.join(wb_description_dir, 'urdf', 'warehouse_bot.urdf.xacro')
-    ekf_config  = os.path.join(wb_embedded_dir, 'config', 'ekf_params.yaml')
+    urdf_file  = os.path.join(description_dir, 'urdf', 'warehouse_bot.urdf.xacro')
+    ekf_config = os.path.join(embedded_dir, 'config', 'ekf_params.yaml')
 
     # ---- Launch arguments ----
-    serial_port = LaunchConfiguration('serial_port')
-    serial_baud = LaunchConfiguration('serial_baud')
+    serial_port  = LaunchConfiguration('serial_port')
+    serial_baud  = LaunchConfiguration('serial_baud')
     use_sim_time = LaunchConfiguration('use_sim_time')
 
     args = [
@@ -61,25 +62,25 @@ def generate_launch_description():
     )
 
     # ---- 1. RPLidar A1 driver ----
+    # LiDAR confirmed on /dev/ttyUSB1
     lidar = Node(
-        package='sllidar_ros2',
-        executable='sllidar_node',
-        name='sllidar_node',
+        package='rplidar_ros',
+        executable='rplidar_composition',
+        name='rplidar_node',
         output='screen',
         parameters=[{
-            'serial_port':    serial_port,
-            'serial_baudrate': 115200,
-            'frame_id':       'base_laser',
-            'inverted':       False,
+            'serial_port':      '/dev/ttyUSB1',
+            'serial_baudrate':  115200,
+            'frame_id':         'base_laser',
+            'inverted':         False,
             'angle_compensate': True,
-            'scan_mode':      'Standard',
-            'use_sim_time':   use_sim_time,
         }]
     )
 
     # ---- 2. Serial bridge (Arduino ↔ ROS2) ----
+    # Arduino confirmed on /dev/ttyUSB0
     serial_bridge = Node(
-        package='wb_embedded',
+        package='embedded',
         executable='serial_bridge',
         name='serial_bridge',
         output='screen',
@@ -92,7 +93,7 @@ def generate_launch_description():
 
     # ---- 3. Wheel odometry ----
     wheel_odometry = Node(
-        package='wb_embedded',
+        package='embedded',
         executable='wheel_odometry',
         name='wheel_odometry',
         output='screen',
@@ -132,6 +133,25 @@ def generate_launch_description():
         ]
     )
 
+    # ---- 6. USB Camera ----
+    camera = Node(
+        package='usb_cam',
+        executable='usb_cam_node_exe',
+        name='usb_cam',
+        output='screen',
+        parameters=[{
+            'video_device':    '/dev/video0',
+            'image_width':     640,
+            'image_height':    480,
+            'framerate':       30.0,
+            'camera_frame_id': 'camera_optical_link',
+        }],
+        remappings=[
+            ('image_raw',   '/camera/image_raw'),
+            ('camera_info', '/camera/camera_info'),
+        ]
+    )
+
     return LaunchDescription(
         args + [
             robot_state_publisher,
@@ -139,5 +159,6 @@ def generate_launch_description():
             serial_bridge,
             wheel_odometry,
             ekf,
+            camera,
         ]
     )

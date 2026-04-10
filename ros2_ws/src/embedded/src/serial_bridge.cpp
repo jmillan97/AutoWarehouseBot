@@ -38,7 +38,7 @@ public:
   SerialBridge() : Node("serial_bridge"), running_(true), serial_fd_(-1)
   {
     this->declare_parameter<std::string>("serial_port", "/dev/ttyUSB0");
-    this->declare_parameter<int>("serial_baud", 9600);
+    this->declare_parameter<int>("serial_baud", 115200);
 
     std::string port = this->get_parameter("serial_port").as_string();
     int baud         = this->get_parameter("serial_baud").as_int();
