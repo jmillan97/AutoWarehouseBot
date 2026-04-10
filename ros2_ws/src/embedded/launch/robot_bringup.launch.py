@@ -132,6 +132,17 @@ def generate_launch_description():
             ('/odometry/filtered', '/odom_filtered'),
         ]
     )
+    imu = Node(
+    package='embedded',
+    executable='imu_node',
+    name='imu_node',
+    output='screen',
+    parameters=[{
+        'imu_frame_id': 'imu_link',
+        'publish_rate': 50,
+        'ini_file': '/home/ece_441/RTIMULib.ini',
+    }]
+    )
 
     # ---- 6. USB Camera ----
     camera = Node(

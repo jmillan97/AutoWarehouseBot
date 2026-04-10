@@ -27,5 +27,9 @@ install(DIRECTORY
 add_executable(wheel_odometry src/wheel_odometry.cpp)
 ament_target_dependencies(wheel_odometry rclcpp std_msgs nav_msgs geometry_msgs tf2 tf2_ros)
 install(TARGETS wheel_odometry DESTINATION lib/${PROJECT_NAME})
-
+install(PROGRAMS
+  src/imu_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME imu_node
+)
 ament_package()
