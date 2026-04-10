@@ -50,7 +50,7 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time')
 
     args = [
-        DeclareLaunchArgument('serial_port',  default_value='/dev/ttyUSB0'),
+        DeclareLaunchArgument('serial_port',  default_value='/dev/arduino'),
         DeclareLaunchArgument('serial_baud',  default_value='115200'),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
     ]
@@ -69,7 +69,7 @@ def generate_launch_description():
         name='rplidar_node',
         output='screen',
         parameters=[{
-            'serial_port':      '/dev/ttyUSB1',
+            'serial_port':      '/dev/lidar',
             'serial_baudrate':  115200,
             'frame_id':         'base_laser',
             'inverted':         False,
