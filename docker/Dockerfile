@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-kilted-slam-toolbox \
     ros-kilted-cartographer-ros \
     ros-kilted-robot-localization \
+    ros-kilted-foxglove-bridge \
     ros-kilted-xacro \
     ros-kilted-joint-state-publisher \
     ros-kilted-tf2-tools \
