@@ -45,9 +45,9 @@ ekf_filter_node:
     # Do NOT fuse IMU linear acceleration if it has high noise — tune this
     imu0_config:
       [False, False, False,  # x, y, z position — no (IMU doesn't give position)
-       False, False, True,   # roll, pitch — no. yaw — yes
+       True, True, True,   # roll, pitch, yaw — yes
        False, False, False,  # vx, vy, vz — no
-       False, False, True,   # vroll, vpitch — no. vyaw — yes (gyro)
+       True, True, True,   # vroll, vpitch — no. vyaw — yes (gyro)
        False, False, False]  # ax, ay, az — no (noisy, skip for now)
 
     imu0_queue_size:     10
