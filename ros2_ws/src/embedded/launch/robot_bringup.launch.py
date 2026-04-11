@@ -28,7 +28,7 @@ Usage (on Pi):
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, TimerAction
 from launch.substitutions import LaunchConfiguration, Command
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
@@ -152,6 +152,12 @@ def generate_launch_description():
         ]
     )
 
+    # Adding a 0.5s delay to the camera to prevent simultaneous startup with LiDAR
+    delayed_camera = TimerAction(
+        period=0.5,
+        actions=[camera]
+    )
+
     return LaunchDescription(
         args + [
             robot_state_publisher,
@@ -159,6 +165,6 @@ def generate_launch_description():
             serial_bridge,
             wheel_odometry,
             ekf,
-            camera,
+            delayed_camera,
         ]
     )
