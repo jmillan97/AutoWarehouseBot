@@ -62,18 +62,19 @@ def generate_launch_description():
     )
 
     # ---- 1. RPLidar A1 driver ----
-    # LiDAR confirmed on /dev/ttyUSB1
+    # LiDAR confirmed on /dev/lidar
     lidar = Node(
         package='rplidar_ros',
         executable='rplidar_composition',
         name='rplidar_node',
         output='screen',
         parameters=[{
-            'serial_port':      '/dev/ttyUSB1',
+            'serial_port':      '/dev/lidar',
             'serial_baudrate':  115200,
             'frame_id':         'base_laser',
             'inverted':         False,
             'angle_compensate': True,
+            'scan_mode':        'Standard',
         }]
     )
 
@@ -133,6 +134,19 @@ def generate_launch_description():
         ]
     )
 
+    # IMU Node (Restored from Pi source to ensure parity)
+    imu = Node(
+        package='embedded',
+        executable='imu_node',
+        name='imu_node',
+        output='screen',
+        parameters=[{
+            'imu_frame_id': 'imu_link',
+            'publish_rate': 50,
+            'ini_file': '/home/ece_441/RTIMULib.ini',
+        }]
+    )
+
     # ---- 6. USB Camera ----
     camera = Node(
         package='usb_cam',
@@ -166,5 +180,6 @@ def generate_launch_description():
             wheel_odometry,
             ekf,
             delayed_camera,
+            imu
         ]
     )

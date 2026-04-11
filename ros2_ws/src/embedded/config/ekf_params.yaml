@@ -13,7 +13,7 @@ ekf_filter_node:
   ros__parameters:
     use_sim_time: False   # Set True in sim, False on real robot
 
-    frequency:    30.0    # Hz — EKF update rate
+    frequency:    15.0    # Hz — EKF update rate
     sensor_timeout: 0.1   # seconds — how long to wait for sensor before predicting
 
     # Coordinate frames — must match interfaces.md
