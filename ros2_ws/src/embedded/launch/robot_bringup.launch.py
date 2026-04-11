@@ -171,5 +171,6 @@ def generate_launch_description():
             wheel_odometry,
             ekf,
             camera,
+            imu
         ]
     )
