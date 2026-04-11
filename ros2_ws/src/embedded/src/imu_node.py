@@ -89,7 +89,7 @@ class ImuNode(Node):
         imu_msg.header.frame_id = self.frame_id
 
         # Orientation (fused quaternion from RTIMULib)
-        if data.get('fusionPoseValid', False):
+        if data.get('fusionPoseValid', False) and 'quaternion' in data:
             q = data['quaternion']
             imu_msg.orientation.x = q.x()
             imu_msg.orientation.y = q.y()
