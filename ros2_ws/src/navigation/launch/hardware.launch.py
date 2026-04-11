@@ -2,21 +2,23 @@
 hardware.launch.py
 ==================
 Laptop-side launch file for real hardware operation.
-Runs in Docker on the offboard compute machine.
+Runs on the offboard compute machine (WSL).
 
 Starts:
-  1. robot_state_publisher  — URDF + TF (odom → base_link)
-  2. EKF node               — fuses /odom from Pi + /imu/data → /odom_filtered
-  3. Nav2                   — AMCL, planner, MPPI controller
+  1. relay_client           — WebSocket relay from Pi over Tailscale
+  2. robot_state_publisher  — URDF + TF (odom → base_link)
+  3. EKF node               — fuses /odom from Pi + /imu/data → /odom_filtered
+  4. Nav2                   — AMCL, planner, MPPI controller
 
 Counterpart: ros2 launch embedded robot_bringup.launch.py  (runs on Pi)
 
-Usage (in Docker):
+Usage:
   ros2 launch navigation hardware.launch.py
 
   Optional args:
-    map:=<path>          (default: blank_map.yaml)
-    use_sim_time:=false  (always false for real hardware)
+    pi_address:=100.91.37.52  (Pi Tailscale IP)
+    map:=<path>               (default: blank_map.yaml)
+    use_sim_time:=false       (always false for real hardware)
 """
 
 import os
@@ -46,6 +48,7 @@ def generate_launch_description():
     args = [
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('map', default_value=map_file),
+        DeclareLaunchArgument('pi_address', default_value='100.91.37.52'),
     ]
 
     robot_description = ParameterValue(
@@ -97,7 +100,20 @@ def generate_launch_description():
         }.items()
     )
 
+    # ---- 1. Tailscale Relay client ----
+    relay_client = Node(
+        package='tailscale_relay',
+        executable='relay_client',
+        name='relay_client',
+        output='screen',
+        parameters=[{
+            'pi_address': LaunchConfiguration('pi_address'),
+            'port': 8765,
+        }],
+    )
+
     return LaunchDescription(args + [
+        relay_client,
         robot_state_publisher,
         ekf,
         nav2,

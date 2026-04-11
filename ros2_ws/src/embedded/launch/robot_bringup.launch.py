@@ -5,44 +5,36 @@ Physical hardware bringup launch file — runs on the Raspberry Pi.
 This is the hardware equivalent of gazebo.launch.py.
 
 Starts:
-  1. RPLidar A1 driver         → publishes /scan          (/dev/ttyUSB1)
-  2. serial_bridge node        → bridges Arduino serial    (/dev/ttyUSB0)
+  1. RPLidar A1 driver         → publishes /scan
+  2. serial_bridge node        → bridges Arduino serial
   3. wheel_odometry node       → computes /odom from encoder ticks
-  4. robot_state_publisher     → URDF + static TF transforms
-  5. EKF node                  → fuses /odom + /imu/data
-  6. usb_cam node              → publishes /camera/image_raw
+  4. IMU node                  → publishes /imu/data
+  5. usb_cam node              → publishes /camera/image_raw
+  6. relay_server              → WebSocket relay to laptop over Tailscale
+
+EKF and robot_state_publisher run on the laptop (hardware.launch.py).
 
 Does NOT start on Pi (runs on offboard PC):
   - Nav2 (AMCL, planner, MPPI controller)
-  - SLAM / Cartographer
+  - EKF (fuses /odom + /imu/data on laptop)
+  - robot_state_publisher (URDF + TF on laptop)
 
 Usage (on Pi):
   ros2 launch embedded robot_bringup.launch.py
 
   Optional args:
     serial_port:=/dev/ttyUSB0   (Arduino, default)
-    serial_baud:=9600            (default)
+    serial_baud:=115200          (default)
     use_sim_time:=false          (always false on real hardware)
 """
 
-import os
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, TimerAction
-from launch.substitutions import LaunchConfiguration, Command
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
-
-    # ---- Package directories ----
-    embedded_dir    = get_package_share_directory('embedded')
-    description_dir = get_package_share_directory('description')
-
-    # ---- File paths ----
-    urdf_file  = os.path.join(description_dir, 'urdf', 'warehouse_bot.urdf.xacro')
-    ekf_config = os.path.join(embedded_dir, 'config', 'ekf_params.yaml')
 
     # ---- Launch arguments ----
     serial_port  = LaunchConfiguration('serial_port')
@@ -55,14 +47,7 @@ def generate_launch_description():
         DeclareLaunchArgument('use_sim_time', default_value='false'),
     ]
 
-    # ---- Robot description (URDF) ----
-    robot_description = ParameterValue(
-        Command(['xacro ', urdf_file]),
-        value_type=str
-    )
-
     # ---- 1. RPLidar A1 driver ----
-    # LiDAR confirmed on /dev/lidar
     lidar = Node(
         package='rplidar_ros',
         executable='rplidar_composition',
@@ -78,8 +63,7 @@ def generate_launch_description():
         }]
     )
 
-    # ---- 2. Serial bridge (Arduino ↔ ROS2) ----
-    # Arduino confirmed on /dev/ttyUSB0
+    # ---- 2. Serial bridge (Arduino <-> ROS2) ----
     serial_bridge = Node(
         package='embedded',
         executable='serial_bridge',
@@ -102,39 +86,12 @@ def generate_launch_description():
             'wheel_radius':     0.04,
             'wheel_separation': 0.21,
             'encoder_cpr':      2.0,
-            'gear_ratio':       30.0,   # [TUNE] measure on real hardware
+            'gear_ratio':       30.0,
             'use_sim_time':     use_sim_time,
         }]
     )
 
-    # ---- 4. Robot state publisher ----
-    robot_state_publisher = Node(
-        package='robot_state_publisher',
-        executable='robot_state_publisher',
-        name='robot_state_publisher',
-        output='screen',
-        parameters=[{
-            'robot_description': robot_description,
-            'use_sim_time':      use_sim_time,
-        }]
-    )
-
-    # ---- 5. EKF node ----
-    ekf = Node(
-        package='robot_localization',
-        executable='ekf_node',
-        name='ekf_filter_node',
-        output='screen',
-        parameters=[
-            ekf_config,
-            {'use_sim_time': use_sim_time}
-        ],
-        remappings=[
-            ('/odometry/filtered', '/odom_filtered'),
-        ]
-    )
-
-    # IMU Node (Restored from Pi source to ensure parity)
+    # ---- 4. IMU node ----
     imu = Node(
         package='embedded',
         executable='imu_node',
@@ -147,7 +104,7 @@ def generate_launch_description():
         }]
     )
 
-    # ---- 6. USB Camera ----
+    # ---- 5. USB Camera ----
     camera = Node(
         package='usb_cam',
         executable='usb_cam_node_exe',
@@ -166,20 +123,27 @@ def generate_launch_description():
         ]
     )
 
-    # Adding a 0.5s delay to the camera to prevent simultaneous startup with LiDAR
     delayed_camera = TimerAction(
         period=0.5,
         actions=[camera]
     )
 
+    # ---- 6. Tailscale Relay server ----
+    relay_server = Node(
+        package='tailscale_relay',
+        executable='relay_server',
+        name='relay_server',
+        output='screen',
+        parameters=[{'port': 8765}],
+    )
+
     return LaunchDescription(
         args + [
-            robot_state_publisher,
             lidar,
             serial_bridge,
             wheel_odometry,
-            ekf,
+            imu,
             delayed_camera,
-            imu
+            relay_server,
         ]
     )

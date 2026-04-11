@@ -1,0 +1,28 @@
+# relay_topics.yaml
+# =================
+# Topics relayed between Pi and Laptop over the WebSocket relay.
+# Add/remove topics here — no code changes needed.
+
+pi_to_laptop:
+  - topic: /scan
+    type: sensor_msgs/msg/LaserScan
+  - topic: /odom
+    type: nav_msgs/msg/Odometry
+  - topic: /imu/data
+    type: sensor_msgs/msg/Imu
+  - topic: /tf
+    type: tf2_msgs/msg/TFMessage
+  - topic: /camera/image_raw/compressed
+    type: sensor_msgs/msg/CompressedImage
+  - topic: /camera/camera_info
+    type: sensor_msgs/msg/CameraInfo
+  - topic: /ble/target/rssi
+    type: std_msgs/msg/Float64
+
+laptop_to_pi:
+  - topic: /cmd_vel
+    type: geometry_msgs/msg/Twist
+  - topic: /summon/motion_cmd
+    type: std_msgs/msg/String
+  - topic: /summon/ble_target
+    type: std_msgs/msg/String
