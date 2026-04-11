@@ -50,7 +50,7 @@ class RelayServer(Node):
         self.port = self.get_parameter('port').value
 
         self.config = load_topic_config()
-        self.clients = set()
+        self.ws_clients = set()
         self.subscriptions_list = []
         self.publishers_dict = {}
         self.send_queue = asyncio.Queue()
@@ -105,7 +105,7 @@ class RelayServer(Node):
         """Handle a single WebSocket client connection."""
         remote = websocket.remote_address
         self.get_logger().info(f'Client connected: {remote}')
-        self.clients.add(websocket)
+        self.ws_clients.add(websocket)
 
         try:
             async for raw in websocket:
@@ -127,7 +127,7 @@ class RelayServer(Node):
         except websockets.exceptions.ConnectionClosed:
             pass
         finally:
-            self.clients.discard(websocket)
+            self.ws_clients.discard(websocket)
             self.get_logger().info(f'Client disconnected: {remote}')
 
     async def broadcast_loop(self):
@@ -136,13 +136,13 @@ class RelayServer(Node):
             topic, type_str, data = await self.send_queue.get()
             header = json.dumps({'topic': topic, 'type': type_str})
             dead = set()
-            for ws in self.clients:
+            for ws in self.ws_clients:
                 try:
                     await ws.send(header)
                     await ws.send(data)
                 except websockets.exceptions.ConnectionClosed:
                     dead.add(ws)
-            self.clients -= dead
+            self.ws_clients -= dead
 
     async def run(self):
         self.setup_subscriptions()
