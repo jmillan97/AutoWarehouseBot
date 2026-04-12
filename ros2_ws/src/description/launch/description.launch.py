@@ -13,10 +13,9 @@ def generate_launch_description():
         'warehouse_bot.urdf.xacro'
     )
 
-    robot_description = ParameterValue(
-        Command(['xacro "', urdf_file, '"']),
-        value_type=str
-    )
+    import xacro
+    robot_description_config = xacro.process_file(urdf_file)
+    robot_description = robot_description_config.toxml()
 
     return LaunchDescription([
         Node(
