@@ -111,7 +111,7 @@ def start_wsl_nodes(verbose=False):
 
     setup = (
         f"source /opt/ros/kilted/setup.bash && "
-        f"source {ws_root}/install/setup.bash 2>/dev/null || true"
+        f"source \\\"{ws_root}/install/setup.bash\\\" 2>/dev/null || true"
     )
 
     redirect = "" if verbose else f" > {LOG_DIR}/startup.log 2>&1"
@@ -136,11 +136,10 @@ def spawn_dashboard():
     tprint("Spawning Dashboard in separate terminal...")
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # We use powershell to launch Windows Terminal (wt)
-    # The command tells WSL to: cd to the script dir, then run python3 start.py --dashboard
+    # Simple wt command: wt.exe wsl -e bash -c "cd '/mnt/c/...'; python3 start.py --dashboard"
+    # We use double quotes for the inner command and escape the path quotes
     inner_cmd = f"cd \\\"{script_dir}\\\"; python3 start.py --dashboard"
-    pa_args = f"wt -ArgumentList \\\"wsl -e bash -c '{inner_cmd}'\\\""
-    cmd = f'powershell.exe -c "Start-Process {pa_args}"'
+    cmd = f'wt.exe wsl -e bash -c "{inner_cmd}"'
     
     try:
         subprocess.Popen(cmd, shell=True)
