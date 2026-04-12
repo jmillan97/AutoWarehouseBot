@@ -136,9 +136,9 @@ def spawn_dashboard():
     tprint("Spawning Dashboard in separate terminal...")
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # Simple wt command: wt.exe wsl -e bash -c "cd '/mnt/c/...'; python3 start.py --dashboard"
-    # We use double quotes for the inner command and escape the path quotes
-    inner_cmd = f"cd \\\"{script_dir}\\\"; python3 start.py --dashboard"
+    # Use Windows Terminal (wt.exe) to launch WSL and run the dashboard
+    # Single quotes for inner path, double quotes for bash -c
+    inner_cmd = f"cd '{script_dir}'; python3 start.py --dashboard"
     cmd = f'wt.exe wsl -e bash -c "{inner_cmd}"'
     
     try:
