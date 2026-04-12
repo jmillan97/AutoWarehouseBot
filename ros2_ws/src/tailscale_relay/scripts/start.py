@@ -134,11 +134,14 @@ def start_wsl_nodes(verbose=False):
 def spawn_dashboard():
     """Spawn the dashboard in a separate Windows Terminal window/tab."""
     tprint("Spawning Dashboard in separate terminal...")
-    script_path = os.path.abspath(__file__)
-    # Command to run in the new terminal
-    # We use escaped double quotes for the path to handle spaces safely in WSL
-    cmd = f'powershell.exe -c "Start-Process wt -ArgumentList \\"wsl -e python3 \\\\\\"{script_path}\\\\\\" --dashboard\\" "'
-    # Fallback if WT isn't installed (unlikely for this user but good practice)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # We use powershell to launch Windows Terminal (wt)
+    # The command tells WSL to: cd to the script dir, then run python3 start.py --dashboard
+    inner_cmd = f"cd \\\"{script_dir}\\\"; python3 start.py --dashboard"
+    pa_args = f"wt -ArgumentList \\\"wsl -e bash -c '{inner_cmd}'\\\""
+    cmd = f'powershell.exe -c "Start-Process {pa_args}"'
+    
     try:
         subprocess.Popen(cmd, shell=True)
     except Exception as e:
