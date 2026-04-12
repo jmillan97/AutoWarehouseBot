@@ -136,8 +136,8 @@ def spawn_dashboard():
     tprint("Spawning Dashboard in separate terminal...")
     script_path = os.path.abspath(__file__)
     # Command to run in the new terminal
-    # We use powershell.exe to call Windows Terminal (wt.exe)
-    cmd = f'powershell.exe -c "Start-Process wt -ArgumentList \\"wsl -e python3 \'{script_path}\' --dashboard\\" "'
+    # We use escaped double quotes for the path to handle spaces safely in WSL
+    cmd = f'powershell.exe -c "Start-Process wt -ArgumentList \\"wsl -e python3 \\\\\\"{script_path}\\\\\\" --dashboard\\" "'
     # Fallback if WT isn't installed (unlikely for this user but good practice)
     try:
         subprocess.Popen(cmd, shell=True)

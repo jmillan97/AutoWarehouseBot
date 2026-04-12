@@ -66,7 +66,7 @@ def generate_launch_description():
     )
 
     delayed_lidar = TimerAction(
-        period=2.0,
+        period=4.0,
         actions=[lidar]
     )
 
