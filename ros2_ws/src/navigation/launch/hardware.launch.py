@@ -51,10 +51,9 @@ def generate_launch_description():
         DeclareLaunchArgument('pi_address', default_value='100.91.37.52'),
     ]
 
-    robot_description = ParameterValue(
-        Command(['xacro ', urdf_file]),
-        value_type=str
-    )
+    import xacro
+    robot_description_config = xacro.process_file(urdf_file)
+    robot_description = robot_description_config.toxml()
 
     # ---- 1. Robot state publisher ----
     # Publishes URDF and odom→base_link TF. Runs on laptop so Nav2 can use it
