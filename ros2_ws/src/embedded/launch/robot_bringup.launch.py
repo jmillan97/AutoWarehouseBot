@@ -53,6 +53,8 @@ def generate_launch_description():
         executable='rplidar_composition',
         name='rplidar_node',
         output='screen',
+        respawn=True,
+        respawn_delay=2.0,
         parameters=[{
             'serial_port':      '/dev/lidar',
             'serial_baudrate':  115200,
@@ -61,6 +63,11 @@ def generate_launch_description():
             'angle_compensate': True,
             'scan_mode':        'Standard',
         }]
+    )
+
+    delayed_lidar = TimerAction(
+        period=2.0,
+        actions=[lidar]
     )
 
     # ---- 2. Serial bridge (Arduino <-> ROS2) ----
@@ -139,7 +146,7 @@ def generate_launch_description():
 
     return LaunchDescription(
         args + [
-            lidar,
+            delayed_lidar,
             serial_bridge,
             wheel_odometry,
             imu,

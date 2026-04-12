@@ -131,12 +131,38 @@ def start_wsl_nodes(verbose=False):
         tprint("  (Tip: Run with --verbose to see full output)")
 
 
+def spawn_dashboard():
+    """Spawn the dashboard in a separate Windows Terminal window/tab."""
+    tprint("Spawning Dashboard in separate terminal...")
+    script_path = os.path.abspath(__file__)
+    # Command to run in the new terminal
+    # We use powershell.exe to call Windows Terminal (wt.exe)
+    cmd = f'powershell.exe -c "Start-Process wt -ArgumentList \\"wsl -e python3 \'{script_path}\' --dashboard\\" "'
+    # Fallback if WT isn't installed (unlikely for this user but good practice)
+    try:
+        subprocess.Popen(cmd, shell=True)
+    except Exception as e:
+        tprint(f"  [!] Failed to spawn dashboard: {e}")
+
+
 def dashboard():
-    key_topics = {
-        "/scan":            "LiDAR (Pi)",
-        "/camera/image_raw": "Camera (Pi)",
-        "/odom_filtered":   "EKF Odom (Laptop)",
-        "/tf":              "Transforms (System)",
+    """Live dashboard showing topic flow and connection status."""
+    # Grouped for cleaner UI
+    pi_to_pc = {
+        "/scan":            "LiDAR Scan",
+        "/camera/image_raw": "Camera Feed",
+        "/odom":            "Raw Odometry",
+        "/imu/data":        "IMU Data",
+        "/ble/target/rssi": "BLE Signal",
+    }
+    pc_to_pi = {
+        "/cmd_vel":             "Motion Commands",
+        "/summon/motion_cmd":   "Summon Actions",
+        "/summon/ble_target":   "BLE Target Set",
+    }
+    system = {
+        "/odom_filtered":   "EKF Filtered",
+        "/tf":              "Transforms",
     }
 
     try:
@@ -146,39 +172,70 @@ def dashboard():
             )
             live = res.stdout.splitlines()
 
-            print("\033c", end="")
+            print("\033c", end="") # Clear screen
             print("+" + "=" * 54 + "+")
-            print(
-                f"|  AutoWarehouseBot Live Dashboard — "
-                f"{datetime.now().strftime('%H:%M:%S')}   |"
-            )
+            print(f"|  AutoWarehouseBot Live Dashboard — {datetime.now().strftime('%H:%M:%S')}   |")
             print("+" + "=" * 54 + "+")
-            print(
-                f"|  Laptop <-> Pi: RELAY   |  "
-                f"Port: 8765 (WebSocket)   |"
-            )
+            print(f"|  Network: {PI_IP.ljust(15)} | Status: ONLINE (Relay) |")
             print("+" + "=" * 25 + "+" + "=" * 28 + "+")
 
-            for topic, desc in key_topics.items():
-                status = "* ONLINE" if topic in live else "  WAITING..."
+            print(f"| [Pi → Laptop] (Sensors)   | Status                     |")
+            print("+" + "-" * 25 + "+" + "-" * 28 + "+")
+            for topic, desc in pi_to_pc.items():
+                status = "* ACTIVE" if topic in live else "  WAITING..."
                 print(f"| {desc.ljust(23)} | {status.ljust(26)} |")
 
             print("+" + "=" * 25 + "+" + "=" * 28 + "+")
+            print(f"| [Laptop → Pi] (Commands)  | Status                     |")
+            print("+" + "-" * 25 + "+" + "-" * 28 + "+")
+            for topic, desc in pc_to_pi.items():
+                status = "* READY " if topic in live else "  OFFLINE    "
+                print(f"| {desc.ljust(23)} | {status.ljust(26)} |")
+
+            print("+" + "=" * 25 + "+" + "=" * 28 + "+")
+            print(f"| [System Transforms]       | Status                     |")
+            print("+" + "-" * 25 + "+" + "-" * 28 + "+")
+            for topic, desc in system.items():
+                status = "* SYNCED" if topic in live else "  INITIALIZING"
+                print(f"| {desc.ljust(23)} | {status.ljust(26)} |")
+
+            print("+" + "=" * 54 + "+")
+            print("| Press Ctrl+C in the main terminal to shutdown.         |")
+            print("+" + "=" * 54 + "+")
             time.sleep(2)
     except KeyboardInterrupt:
         pass
 
 
 def main():
+    # Parse arguments
     verbose = "--verbose" in sys.argv or "-v" in sys.argv
+    is_dashboard = "--dashboard" in sys.argv
 
+    if is_dashboard:
+        dashboard()
+        return
+
+    banner("AutoWarehouseBot Startup Bridge")
     tprint(f"Network: {PI_IP} (Pi via Tailscale)")
+    
     start_pi(verbose)
     start_wsl_nodes(verbose)
 
-    if not verbose:
-        tprint("Initializing Dashboard...")
-        time.sleep(1)
+    # In normal or verbose mode, we spawn the dashboard in a new window
+    time.sleep(1)
+    spawn_dashboard()
+
+    if verbose:
+        tprint("System running. Monitor logs here; use the new window for Dashboard.")
+        # Keep main thread alive for the subprocesses
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            cleanup(None, None)
+    else:
+        tprint("System running. Initializing local dashboard...")
         dashboard()
 
 
