@@ -110,8 +110,8 @@ def start_wsl_nodes(verbose=False):
     ws_root = os.path.abspath(os.path.join(script_dir, '..', '..', '..'))
 
     setup = (
-        f"source /opt/ros/kilted/setup.bash && "
-        f"source \\\"{ws_root}/install/setup.bash\\\" 2>/dev/null || true"
+        f'source /opt/ros/kilted/setup.bash && '
+        f'source "{ws_root}/install/setup.bash" 2>/dev/null || true'
     )
 
     redirect = "" if verbose else f" > {LOG_DIR}/startup.log 2>&1"
