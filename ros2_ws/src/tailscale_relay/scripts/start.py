@@ -117,13 +117,9 @@ def start_wsl_nodes(verbose=False):
     redirect = "" if verbose else f" > {LOG_DIR}/startup.log 2>&1"
 
     tprint("Launching Navigation + Relay Client...")
-    cmd = (
-        f"bash -c '{setup} && "
-        f"ros2 launch navigation hardware.launch.py "
-        f"pi_address:={PI_IP} {redirect}'"
-    )
+    full_cmd = f"{setup} && ros2 launch navigation hardware.launch.py pi_address:={PI_IP} {redirect}"
     local_processes.append(
-        subprocess.Popen(cmd, shell=True, preexec_fn=os.setsid)
+        subprocess.Popen(["bash", "-c", full_cmd], preexec_fn=os.setsid)
     )
 
     if not verbose:
