@@ -8,7 +8,7 @@ services:
     profiles: ["discovery"]
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: docker/Dockerfile.robot
     container_name: warehousebot_discovery
     network_mode: "host"
     command: >
@@ -49,7 +49,7 @@ services:
     profiles: ["robot"]
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: docker/Dockerfile.robot
     container_name: warehousebot_robot
     network_mode: "host"
     environment:
