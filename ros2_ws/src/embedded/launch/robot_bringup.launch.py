@@ -30,8 +30,10 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, TimerAction
 from launch.substitutions import LaunchConfiguration, Command
-from launch_ros.actions import Node
+from launch_ros.actions import Node, RegisterEventHandler, TimerAction
 from launch_ros.parameter_descriptions import ParameterValue
+from launch.event_handlers import OnProcessExit
+
 
 
 def generate_launch_description():
@@ -75,6 +77,31 @@ def generate_launch_description():
             'inverted':         False,
             'angle_compensate': True,
         }]
+    )
+    lidar_respawn = RegisterEventHandler(
+        OnProcessExit(
+        target_action=lidar,
+        on_exit=[
+            TimerAction(
+                period=3.0,
+                actions=[
+                    Node(
+                        package='rplidar_ros',
+                        executable='rplidar_composition',
+                        name='rplidar_node',
+                        output='screen',
+                        parameters=[{
+                            'serial_port':      '/dev/lidar',
+                            'serial_baudrate':  115200,
+                            'frame_id':         'base_laser',
+                            'inverted':         False,
+                            'angle_compensate': True,
+                            }]
+                        )
+                    ]  
+                )
+            ]
+        )
     )
 
     # ---- 2. Serial bridge (Arduino ↔ ROS2) ----
@@ -173,7 +200,8 @@ def generate_launch_description():
     return LaunchDescription(
         args + [
             robot_state_publisher,
-            lidar,
+            TimerAction(period=2.0, actions=[lidar]),
+            lidar_respawn,
             serial_bridge,
             wheel_odometry,
             ekf,
