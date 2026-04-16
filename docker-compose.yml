@@ -1,20 +1,5 @@
 services:
 
-  # ── Discovery Server — runs on the Pi ────────────────────────────────────────
-  # Central discovery point. No multicast needed.
-  # On Pi: docker compose --profile discovery up -d
-  # ────────────────────────────────────────────────────────────────────────────
-  discovery:
-    profiles: ["discovery"]
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.robot
-    container_name: warehousebot_discovery
-    network_mode: "host"
-    command: >
-      bash -c "source /opt/ros/kilted/setup.bash &&
-               fastdds discovery --server-id 0 --port 11811"
-    restart: unless-stopped
 
   # ── Dev shell — interactive development (laptop) ─────────────────────────────
   # VS Code Dev Container attaches here.
@@ -29,7 +14,8 @@ services:
     environment:
       - ROS_DOMAIN_ID=42
       - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-      - ROS_DISCOVERY_SERVER=192.168.4.67:11811
+      - FASTDDS_DEFAULT_PROFILES_FILE=/workspaces/AutoWarehouseBot/docker/fastdds_config.xml
+      - ROS_LOCALHOST_ONLY=0      
       - DISPLAY
       - WAYLAND_DISPLAY
       - XDG_RUNTIME_DIR
@@ -44,6 +30,7 @@ services:
   # ── Robot profile — Raspberry Pi ─────────────────────────────────────────────
   # Runs hardware-facing nodes.
   # On Pi: docker compose --profile discovery --profile robot up
+  #no longer used since ros2 runs natively
   # ────────────────────────────────────────────────────────────────────────────
   robot:
     profiles: ["robot"]
@@ -55,7 +42,8 @@ services:
     environment:
       - ROS_DOMAIN_ID=42
       - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-      - ROS_DISCOVERY_SERVER=192.168.4.67:11811
+      - FASTDDS_DEFAULT_PROFILES_FILE=/workspaces/AutoWarehouseBot/docker/fastdds_config.xml
+       - ROS_LOCALHOST_ONLY=0
     volumes:
       - .:/workspaces/AutoWarehouseBot:cached
     command: >
@@ -80,7 +68,8 @@ services:
     environment:
       - ROS_DOMAIN_ID=42
       - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-      - ROS_DISCOVERY_SERVER=192.168.4.67:11811
+      - FASTDDS_DEFAULT_PROFILES_FILE=/workspaces/AutoWarehouseBot/docker/fastdds_config.xml
+      - ROS_LOCALHOST_ONLY=0
       - DISPLAY
       - WAYLAND_DISPLAY
       - XDG_RUNTIME_DIR
@@ -109,7 +98,8 @@ services:
     environment:
       - ROS_DOMAIN_ID=42
       - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-      - ROS_DISCOVERY_SERVER=192.168.4.67:11811
+      - FASTDDS_DEFAULT_PROFILES_FILE=/workspaces/AutoWarehouseBot/docker/fastdds_config.xml
+      - ROS_LOCALHOST_ONLY=0
       - DISPLAY
       - WAYLAND_DISPLAY
       - XDG_RUNTIME_DIR
@@ -137,7 +127,8 @@ services:
     environment:
       - ROS_DOMAIN_ID=42
       - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-      - ROS_DISCOVERY_SERVER=192.168.4.67:11811
+      - FASTDDS_DEFAULT_PROFILES_FILE=/workspaces/AutoWarehouseBot/docker/fastdds_config.xml
+      - ROS_LOCALHOST_ONLY=0
     command: >
       bash -c "source /opt/ros/kilted/setup.bash &&
                if [ -f /workspaces/AutoWarehouseBot/install/setup.bash ]; then source /workspaces/AutoWarehouseBot/install/setup.bash; fi &&
