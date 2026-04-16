@@ -32,4 +32,9 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
   RENAME imu_node
 )
+install(PROGRAMS
+  src/zenoh_relay.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME zenoh_relay
+)
 ament_package()
