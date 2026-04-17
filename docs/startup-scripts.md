@@ -180,11 +180,14 @@ ros2 topic pub --once /rotate_angle_deg std_msgs/msg/Int32 "{data: -45}"
 The current working camera path is:
 
 - Pi `usb_cam` publishes honest decoded frames with:
-- Pi `usb_cam` publishes honest decoded frames with:
   - `image_width: 320`
   - `image_height: 240`
   - `framerate: 10.0`
   - `pixel_format: yuyv2rgb`
+- Pi `robot_bringup.launch.py` now keeps LiDAR disabled by default while it is
+  unplugged.
+- EKF is intended to run on WSL in `navigation/launch/hardware.launch.py`, not
+  on the Pi.
 - WSL viewer:
 
 ```bash
@@ -207,6 +210,8 @@ Important note:
 - `raw_mjpeg` is efficient, but on this setup it produced misleading raw-topic behavior
 - `mjpeg2rgb` was honest but unstable on this setup
 - `yuyv2rgb` is the current preferred path because it avoids the MJPEG timeout/crash path
+- the YOLO node now reads `/camera/image_raw/compressed` on WSL so image JPEG
+  decoding happens offboard instead of on the Pi ROS graph consumer side
 
 Latency / bandwidth suggestions if camera is still too slow:
 
@@ -216,6 +221,14 @@ Latency / bandwidth suggestions if camera is still too slow:
 - avoid multiple WSL viewers or extra `ros2 topic echo` subscribers on image topics
 - close unused nodes on the Pi, especially anything heavy on CPU
 - if you later need the absolute lowest network load, revisit a true compressed-image transport path, but only if the driver publishes it honestly
+
+LiDAR note:
+
+- To re-enable LiDAR once `/dev/lidar` is connected again, launch Pi bringup with:
+
+```bash
+ros2 launch embedded robot_bringup.launch.py enable_lidar:=true
+```
 
 Safety note:
 

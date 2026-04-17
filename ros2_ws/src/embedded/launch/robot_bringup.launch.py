@@ -5,14 +5,14 @@ Physical hardware bringup launch file — runs on the Raspberry Pi.
 This is the hardware equivalent of gazebo.launch.py.
 
 Starts:
-  1. RPLidar A1 driver         → publishes /scan          (/dev/ttyUSB1)
-  2. serial_bridge node        → bridges Arduino serial    (/dev/ttyUSB0)
-  3. wheel_odometry node       → computes /odom from encoder ticks
-  4. robot_state_publisher     → URDF + static TF transforms
-  5. EKF node                  → fuses /odom + /imu/data
-  6. usb_cam node              → publishes /camera/image_raw
+  1. serial_bridge node        → bridges Arduino serial    (/dev/ttyUSB0)
+  2. wheel_odometry node       → computes /odom from encoder ticks
+  3. robot_state_publisher     → URDF + static TF transforms
+  4. IMU node                  → publishes /imu/data
+  5. usb_cam node              → publishes /camera/image_raw
 
 Does NOT start on Pi (runs on offboard PC):
+  - EKF / robot_localization
   - Nav2 (AMCL, planner, MPPI controller)
   - SLAM / Cartographer
 
@@ -28,6 +28,7 @@ Usage (on Pi):
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
+from launch.conditions import IfCondition
 from launch.actions import DeclareLaunchArgument, TimerAction, RegisterEventHandler
 from launch.substitutions import LaunchConfiguration, Command
 from launch_ros.actions import Node
@@ -44,17 +45,21 @@ def generate_launch_description():
 
     # ---- File paths ----
     urdf_file  = os.path.join(description_dir, 'urdf', 'warehouse_bot.urdf.xacro')
-    ekf_config = os.path.join(embedded_dir, 'config', 'ekf_params.yaml')
-
     # ---- Launch arguments ----
     serial_port  = LaunchConfiguration('serial_port')
     serial_baud  = LaunchConfiguration('serial_baud')
     use_sim_time = LaunchConfiguration('use_sim_time')
+    enable_lidar = LaunchConfiguration('enable_lidar')
 
     args = [
         DeclareLaunchArgument('serial_port',  default_value='/dev/arduino'),
         DeclareLaunchArgument('serial_baud',  default_value='115200'),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
+        DeclareLaunchArgument(
+            'enable_lidar',
+            default_value='false',
+            description='Set true when the RPLidar is physically connected on /dev/lidar.',
+        ),
     ]
 
     # ---- Robot description (URDF) ----
@@ -63,13 +68,14 @@ def generate_launch_description():
         value_type=str
     )
 
-    # ---- 1. RPLidar A1 driver ----
-    # LiDAR confirmed on /dev/ttyUSB1
+    # ---- Optional: RPLidar A1 driver ----
+    # Disabled by default because LiDAR is often unplugged during camera/YOLO work.
     lidar = Node(
         package='rplidar_ros',
         executable='rplidar_composition',
         name='rplidar_node',
         output='screen',
+        condition=IfCondition(enable_lidar),
         parameters=[{
             'serial_port':      '/dev/lidar',
             'serial_baudrate':  115200,
@@ -90,6 +96,7 @@ def generate_launch_description():
                         executable='rplidar_composition',
                         name='rplidar_node',
                         output='screen',
+                        condition=IfCondition(enable_lidar),
                         parameters=[{
                             'serial_port':      '/dev/lidar',
                             'serial_baudrate':  115200,
@@ -144,21 +151,6 @@ def generate_launch_description():
             'robot_description': robot_description,
             'use_sim_time':      use_sim_time,
         }]
-    )
-
-    # ---- 5. EKF node ----
-    ekf = Node(
-        package='robot_localization',
-        executable='ekf_node',
-        name='ekf_filter_node',
-        output='screen',
-        parameters=[
-            ekf_config,
-            {'use_sim_time': use_sim_time}
-        ],
-        remappings=[
-            ('/odometry/filtered', '/odom_filtered'),
-        ]
     )
 
     imu = Node(
@@ -221,7 +213,7 @@ def generate_launch_description():
         )
     )
 
-    # 0.5s delay to prevent simultaneous USB init with LiDAR on startup
+    # Give USB peripherals a moment to settle before camera init.
     delayed_camera = TimerAction(
         period=0.5,
         actions=[camera]
@@ -234,7 +226,6 @@ def generate_launch_description():
             lidar_respawn,
             serial_bridge,
             wheel_odometry,
-            ekf,
             delayed_camera,
             camera_respawn,
             imu

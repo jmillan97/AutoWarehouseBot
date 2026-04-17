@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import CompressedImage, Image
 from std_msgs.msg import Int32, String
 
 
@@ -21,6 +21,7 @@ class YoloDetector(Node):
         self.declare_parameter('model_path', 'yolov8n.pt')
         self.declare_parameter('confidence_threshold', 0.4)
         self.declare_parameter('person_only', False)
+        self.declare_parameter('image_topic_type', 'auto')
         self.declare_parameter('publish_annotated_image', False)
         self.declare_parameter('display_overlay', True)
         self.declare_parameter('display_window_name', 'YOLO Overlay')
@@ -32,6 +33,7 @@ class YoloDetector(Node):
         self.model_path = self.get_parameter('model_path').value
         self.confidence_threshold = float(self.get_parameter('confidence_threshold').value)
         self.person_only = bool(self.get_parameter('person_only').value)
+        self.image_topic_type = str(self.get_parameter('image_topic_type').value)
         self.publish_annotated_image = bool(self.get_parameter('publish_annotated_image').value)
         self.display_overlay = bool(self.get_parameter('display_overlay').value)
         self.display_window_name = str(self.get_parameter('display_window_name').value)
@@ -39,21 +41,34 @@ class YoloDetector(Node):
         self.model = None
         self.class_names = {}
         self._load_model()
-
-        self.create_subscription(Image, self.image_topic, self._on_image, 10)
+        self._subscription_mode = self._resolve_topic_type()
+        if self._subscription_mode == 'compressed':
+            self.create_subscription(CompressedImage, self.image_topic, self._on_compressed_image, 10)
+        else:
+            self.create_subscription(Image, self.image_topic, self._on_image, 10)
         self.detections_pub = self.create_publisher(String, self.detections_topic, 10)
         self.people_pub = self.create_publisher(Int32, self.people_topic, 10)
         self.annotated_pub = None
         if self.publish_annotated_image:
             self.annotated_pub = self.create_publisher(Image, self.annotated_image_topic, 10)
 
-        self.get_logger().info(f'YOLO detector subscribed to {self.image_topic}')
+        self.get_logger().info(
+            f'YOLO detector subscribed to {self.image_topic} ({self._subscription_mode})'
+        )
         self.get_logger().info(f'Publishing detections on {self.detections_topic}')
         self.get_logger().info(f'Publishing people count on {self.people_topic}')
         if self.display_overlay:
             self.get_logger().info(f'Showing local overlay window: {self.display_window_name}')
         if self.publish_annotated_image:
             self.get_logger().info(f'Publishing annotated image on {self.annotated_image_topic}')
+
+    def _resolve_topic_type(self) -> str:
+        topic_type = self.image_topic_type.strip().lower()
+        if topic_type in ('raw', 'compressed'):
+            return topic_type
+        if self.image_topic.endswith('/compressed'):
+            return 'compressed'
+        return 'raw'
 
     def _load_model(self) -> None:
         try:
@@ -76,10 +91,17 @@ class YoloDetector(Node):
         frame = self._decode_image(msg)
         if frame is None:
             return
+        self._run_inference(frame, msg.header.stamp, msg.header.frame_id)
 
+    def _on_compressed_image(self, msg: CompressedImage) -> None:
+        frame = self._decode_compressed_image(msg)
+        if frame is None:
+            return
+        self._run_inference(frame, msg.header.stamp, '')
+
+    def _run_inference(self, frame, stamp, frame_id: str) -> None:
         if self.model is None:
             return
-
         try:
             results = self.model.predict(
                 source=frame,
@@ -107,8 +129,8 @@ class YoloDetector(Node):
             cv2.waitKey(1)
 
         if self.publish_annotated_image and annotated is not None and self.annotated_pub is not None:
-            annotated_msg = self._encode_bgr_image(annotated, msg.header.frame_id)
-            annotated_msg.header.stamp = msg.header.stamp
+            annotated_msg = self._encode_bgr_image(annotated, frame_id)
+            annotated_msg.header.stamp = stamp
             self.annotated_pub.publish(annotated_msg)
 
     def _decode_image(self, msg: Image):
@@ -128,6 +150,13 @@ class YoloDetector(Node):
 
         self.get_logger().warning(f'Unsupported image encoding for YOLO node: {msg.encoding}')
         return None
+
+    def _decode_compressed_image(self, msg: CompressedImage):
+        frame = np.frombuffer(msg.data, dtype=np.uint8)
+        decoded = cv2.imdecode(frame, cv2.IMREAD_COLOR)
+        if decoded is None:
+            self.get_logger().warning('Failed to decode compressed image frame for YOLO node')
+        return decoded
 
     def _results_to_detections(self, results) -> List[dict]:
         detections: List[dict] = []

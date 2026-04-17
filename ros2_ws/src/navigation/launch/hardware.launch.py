@@ -107,7 +107,8 @@ def generate_launch_description():
         output='screen',
         condition=IfCondition(LaunchConfiguration('use_yolo')),
         parameters=[{
-            'image_topic': '/camera/image_raw',
+            'image_topic': '/camera/image_raw/compressed',
+            'image_topic_type': 'compressed',
             'annotated_image_topic': '/perception/yolo/annotated_image',
             'detections_topic': '/perception/yolo/detections',
             'people_topic': '/perception/yolo/people',

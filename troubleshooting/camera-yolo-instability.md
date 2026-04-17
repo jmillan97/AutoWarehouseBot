@@ -11,6 +11,8 @@ working, what is failing, and the most likely causes.
   - `image_height: 240`
   - `framerate: 10.0`
   - `pixel_format: yuyv2rgb`
+- Pi bringup now leaves LiDAR off by default while it is unplugged.
+- Pi bringup no longer runs EKF; EKF is meant to stay on WSL.
 - WSL can display the plain camera feed in a local viewer.
 - WSL YOLO package scaffolding exists and builds successfully.
 - WSL YOLO model file exists locally:
@@ -133,7 +135,7 @@ window**, not as a heavy annotated image topic that must be shipped around ROS.
 
 The YOLO node was refactored so that:
 
-- it subscribes to `/camera/image_raw`
+- it subscribes to `/camera/image_raw/compressed`
 - it opens a local OpenCV overlay window on WSL
 - it publishes lightweight outputs:
   - `/perception/yolo/detections`
@@ -141,6 +143,19 @@ The YOLO node was refactored so that:
 - it does **not** need to publish an annotated image topic by default
 
 This is the better short-term design because it reduces ROS image traffic.
+
+The current intended split is:
+
+- Pi:
+  - camera
+  - serial bridge
+  - wheel odometry
+  - IMU
+- WSL:
+  - EKF
+  - Nav2
+  - YOLO
+  - local overlay / debugging windows
 
 ## Most Likely Root Causes
 
@@ -190,6 +205,17 @@ Reason:
   - `Select timeout, exiting...`
 - ROS `image_transport` can still provide compressed topics for offboard
   consumers without depending on the MJPEG decode path inside `usb_cam`
+
+### LiDAR re-enable note
+
+LiDAR is disabled by default in `robot_bringup.launch.py` for now because the
+sensor is currently unplugged and the repeated bind failures waste Pi CPU.
+
+When the sensor is connected again, re-enable it with:
+
+```bash
+ros2 launch embedded robot_bringup.launch.py enable_lidar:=true
+```
 
 This is not ideal for quality, but it is a reasonable stability-first step.
 
