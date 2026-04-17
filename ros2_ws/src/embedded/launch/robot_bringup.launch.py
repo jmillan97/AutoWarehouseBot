@@ -180,10 +180,10 @@ def generate_launch_description():
     # the ROS Image message so consumers can trust the encoding field.
     camera_params = {
         'video_device':    '/dev/video0',
-        'image_width':     640,
-        'image_height':    480,
-        'framerate':       30.0,
-        'pixel_format':    'mjpeg',
+        'image_width':     320,
+        'image_height':    240,
+        'framerate':       10.0,
+        'pixel_format':    'mjpeg2rgb',
         'camera_frame_id': 'camera_optical_link',
     }
     camera_remaps = [
