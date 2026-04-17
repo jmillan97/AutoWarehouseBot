@@ -173,25 +173,53 @@ def generate_launch_description():
     )
 
     # ---- 6. USB Camera ----
+    # pixel_format=mjpeg: camera does JPEG compression in hardware, cutting USB
+    # bandwidth ~4x vs raw YUYV — prevents the V4L2 select() timeout crash under
+    # Pi CPU load. Camera confirmed to support Motion-JPEG at 640x480@30fps.
+    camera_params = {
+        'video_device':    '/dev/video0',
+        'image_width':     640,
+        'image_height':    480,
+        'framerate':       30.0,
+        'pixel_format':    'mjpeg',
+        'camera_frame_id': 'camera_optical_link',
+    }
+    camera_remaps = [
+        ('image_raw',   '/camera/image_raw'),
+        ('camera_info', '/camera/camera_info'),
+    ]
+
     camera = Node(
         package='usb_cam',
         executable='usb_cam_node_exe',
         name='usb_cam',
         output='screen',
-        parameters=[{
-            'video_device':    '/dev/video0',
-            'image_width':     640,
-            'image_height':    480,
-            'framerate':       30.0,
-            'camera_frame_id': 'camera_optical_link',
-        }],
-        remappings=[
-            ('image_raw',   '/camera/image_raw'),
-            ('camera_info', '/camera/camera_info'),
-        ]
+        parameters=[camera_params],
+        remappings=camera_remaps,
     )
 
-    # Adding a 0.5s delay to the camera to prevent simultaneous startup with LiDAR
+    camera_respawn = RegisterEventHandler(
+        OnProcessExit(
+            target_action=camera,
+            on_exit=[
+                TimerAction(
+                    period=3.0,
+                    actions=[
+                        Node(
+                            package='usb_cam',
+                            executable='usb_cam_node_exe',
+                            name='usb_cam',
+                            output='screen',
+                            parameters=[camera_params],
+                            remappings=camera_remaps,
+                        )
+                    ]
+                )
+            ]
+        )
+    )
+
+    # 0.5s delay to prevent simultaneous USB init with LiDAR on startup
     delayed_camera = TimerAction(
         period=0.5,
         actions=[camera]
@@ -206,6 +234,7 @@ def generate_launch_description():
             wheel_odometry,
             ekf,
             delayed_camera,
+            camera_respawn,
             imu
         ]
     )
