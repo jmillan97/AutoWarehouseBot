@@ -174,15 +174,16 @@ def generate_launch_description():
     )
 
     # ---- 6. USB Camera ----
-    # pixel_format=mjpeg: camera does JPEG compression in hardware, cutting USB
-    # bandwidth ~4x vs raw YUYV — prevents the V4L2 select() timeout crash under
-    # Pi CPU load. Camera confirmed to support Motion-JPEG at 640x480@30fps.
+    # Publish an honest raw image on /camera/image_raw. raw_mjpeg forwarded
+    # JPEG bytes while labeling them as yuv422, which broke downstream tools.
+    # mjpeg2rgb keeps camera-side MJPEG capture but decodes before publishing
+    # the ROS Image message so consumers can trust the encoding field.
     camera_params = {
         'video_device':    '/dev/video0',
         'image_width':     640,
         'image_height':    480,
         'framerate':       30.0,
-        'pixel_format':    'raw_mjpeg',
+        'pixel_format':    'mjpeg2rgb',
         'camera_frame_id': 'camera_optical_link',
     }
     camera_remaps = [
