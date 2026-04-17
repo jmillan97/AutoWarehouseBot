@@ -245,6 +245,8 @@ This UI:
 
 - subscribes to `/camera/image_raw/compressed`
 - shows the live camera feed
+- runs YOLO locally inside the same window when `ultralytics` and
+  `~/warehouse_project/yolov8n.pt` are available
 - publishes movement commands to:
   - `/move_distance_mm`
   - `/rotate_angle_deg`
@@ -263,17 +265,9 @@ rotate_deg -90
 help
 ```
 
-The operator console intentionally stays on the plain camera feed for lower
-latency and better stability. If you want YOLO visuals, run the WSL stack with
-YOLO enabled in its separate local overlay window:
-
-```bash
-cd ~/warehouse_project/ros2_ws
-source /opt/ros/kilted/setup.bash
-source install/setup.bash
-source ~/.ros_network_env
-ros2 launch navigation hardware.launch.py use_rviz:=false use_yolo:=true
-```
+This is now the preferred operator workflow because it keeps the movement
+controls and YOLO overlay in one WSL app instead of depending on a separate
+YOLO window.
 
 Safety note:
 

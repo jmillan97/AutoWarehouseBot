@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-import queue
 import os
+import queue
 import re
 import threading
+import time
 import tkinter as tk
 from tkinter import ttk
 
+import cv2
 import numpy as np
 import rclpy
 from PIL import Image, ImageTk
@@ -16,6 +18,9 @@ from std_msgs.msg import Int32
 
 
 CAMERA_TOPIC = os.environ.get('OPERATOR_CAMERA_TOPIC', '/camera/image_raw/compressed')
+MODEL_PATH = os.environ.get('OPERATOR_YOLO_MODEL', os.path.expanduser('~/warehouse_project/yolov8n.pt'))
+USE_YOLO = os.environ.get('OPERATOR_USE_YOLO', '1').strip().lower() not in ('0', 'false', 'no')
+CONFIDENCE_THRESHOLD = float(os.environ.get('OPERATOR_YOLO_CONF', '0.4'))
 APP_TITLE = 'Warehouse Bot Operator Console'
 VIDEO_SIZE = (640, 480)
 LOG_MAX_LINES = 200
@@ -25,11 +30,17 @@ class OperatorConsoleNode(Node):
     def __init__(self, ui_queue: queue.Queue):
         super().__init__('operator_console')
         self.ui_queue = ui_queue
-        self.latest_camera_frame = None
         self.frame_lock = threading.Lock()
+        self.latest_frame = None
+        self.latest_frame_source = 'waiting'
+        self.model = None
+        self.class_names = {}
 
         self.move_pub = self.create_publisher(Int32, '/move_distance_mm', 10)
         self.rotate_pub = self.create_publisher(Int32, '/rotate_angle_deg', 10)
+
+        if USE_YOLO:
+            self._load_model()
 
         self.create_subscription(
             CompressedImage,
@@ -38,20 +49,90 @@ class OperatorConsoleNode(Node):
             qos_profile_sensor_data,
         )
         self.ui_queue.put(('log', f'Subscribed to {CAMERA_TOPIC}'))
+        if self.model is not None:
+            self.ui_queue.put(('log', f'YOLO overlay enabled: {MODEL_PATH}'))
+        else:
+            self.ui_queue.put(('log', 'YOLO overlay disabled; showing plain camera feed'))
+
+    def _load_model(self) -> None:
+        try:
+            from ultralytics import YOLO  # type: ignore
+        except ImportError:
+            self.ui_queue.put(('log', 'ultralytics not installed; operator console will stay on plain camera'))
+            return
+
+        try:
+            self.model = YOLO(MODEL_PATH)
+            self.class_names = getattr(self.model.model, 'names', {}) or {}
+        except Exception as exc:
+            self.ui_queue.put(('log', f'Failed to load YOLO model {MODEL_PATH}: {exc}'))
+            self.model = None
 
     def _on_compressed_frame(self, msg: CompressedImage) -> None:
-        data = np.frombuffer(msg.data, dtype=np.uint8)
-        frame = cv2_decode(data)
+        frame = cv2.imdecode(np.frombuffer(msg.data, dtype=np.uint8), cv2.IMREAD_COLOR)
         if frame is None:
             self.ui_queue.put(('log', 'Failed to decode compressed camera frame'))
             return
+
+        source = 'camera'
+        annotated = frame
+        if self.model is not None:
+            try:
+                results = self.model.predict(
+                    source=frame,
+                    verbose=False,
+                    conf=CONFIDENCE_THRESHOLD,
+                )
+                detections = self._results_to_detections(results)
+                annotated = self._draw_detections(frame.copy(), detections)
+                source = 'camera + yolo'
+            except Exception as exc:
+                self.ui_queue.put(('log', f'YOLO inference failed, falling back to plain camera: {exc}'))
+                self.model = None
+
         with self.frame_lock:
-            self.latest_camera_frame = frame
+            self.latest_frame = annotated
+            self.latest_frame_source = source
+
+    def _results_to_detections(self, results):
+        detections = []
+        for result in results:
+            boxes = getattr(result, 'boxes', None)
+            if boxes is None:
+                continue
+            for box in boxes:
+                cls_id = int(box.cls[0].item())
+                conf = float(box.conf[0].item())
+                x1, y1, x2, y2 = [float(v) for v in box.xyxy[0].tolist()]
+                detections.append({
+                    'class_name': self.class_names.get(cls_id, str(cls_id)),
+                    'confidence': conf,
+                    'bbox_xyxy': [x1, y1, x2, y2],
+                })
+        return detections
+
+    def _draw_detections(self, frame, detections):
+        for det in detections:
+            x1, y1, x2, y2 = [int(v) for v in det['bbox_xyxy']]
+            label = f"{det['class_name']} {det['confidence']:.2f}"
+            color = (0, 200, 0) if det['class_name'] == 'person' else (0, 140, 255)
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+            cv2.putText(
+                frame,
+                label,
+                (x1, max(20, y1 - 8)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                color,
+                1,
+                cv2.LINE_AA,
+            )
+        return frame
 
     def get_display_frame(self):
         with self.frame_lock:
-            if self.latest_camera_frame is not None:
-                return self.latest_camera_frame.copy(), 'camera'
+            if self.latest_frame is not None:
+                return self.latest_frame.copy(), self.latest_frame_source
         return None, 'waiting'
 
     def publish_move_mm(self, value: int) -> None:
@@ -65,19 +146,10 @@ class OperatorConsoleNode(Node):
         self.ui_queue.put(('log', f'Sent /rotate_angle_deg={value} ({direction})'))
 
 
-def cv2_decode(data: np.ndarray):
-    import cv2
-
-    return cv2.imdecode(data, cv2.IMREAD_COLOR)
-
-
 def bgr_to_tk_image(frame, size):
-    import cv2
-
     resized = cv2.resize(frame, size, interpolation=cv2.INTER_AREA)
     rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
-    pil_image = Image.fromarray(rgb)
-    return ImageTk.PhotoImage(pil_image)
+    return ImageTk.PhotoImage(Image.fromarray(rgb))
 
 
 def parse_distance_to_mm(value: float, unit: str) -> int:
@@ -128,8 +200,7 @@ def parse_operator_command(text: str):
     if move_match:
         action, value_text, unit = move_match.groups()
         value = float(value_text)
-        unit = unit or 'mm'
-        mm = parse_distance_to_mm(value, unit)
+        mm = parse_distance_to_mm(value, unit or 'mm')
         if action in ('back', 'backward'):
             mm = -abs(mm)
         return ('move_mm', mm)
@@ -164,7 +235,7 @@ class OperatorConsoleApp:
         self.root.title(APP_TITLE)
         self.root.geometry('900x820')
 
-        self.ui_queue: queue.Queue = queue.Queue()
+        self.ui_queue = queue.Queue()
         self.node = OperatorConsoleNode(self.ui_queue)
         self.spin_thread = threading.Thread(target=rclpy.spin, args=(self.node,), daemon=True)
         self.spin_thread.start()
@@ -230,11 +301,10 @@ class OperatorConsoleApp:
             row=0, column=1, sticky='e'
         )
 
-        help_label = ttk.Label(
+        ttk.Label(
             controls,
             text='Try: forward 3 ft, back 250 mm, left 90 deg, rotate -45 deg',
-        )
-        help_label.grid(row=2, column=0, sticky='w', padx=8, pady=(0, 6))
+        ).grid(row=2, column=0, sticky='w', padx=8, pady=(0, 6))
 
         self.log_widget = tk.Text(controls, height=12, wrap='word', state='disabled')
         self.log_widget.grid(row=3, column=0, sticky='nsew', padx=8, pady=(0, 8))
