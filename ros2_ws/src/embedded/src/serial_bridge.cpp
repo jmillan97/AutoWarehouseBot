@@ -1,13 +1,15 @@
 /*
  * serial_bridge.cpp
  * =================
- * Raspberry Pi ROS2 node — bridges /cmd_vel to Arduino serial
+ * Raspberry Pi ROS2 node — bridges movement command topics to Arduino serial
  *
  * Protocol:
- *   Pi → Arduino:   "V:{linear_mps},{angular_rads}\n"
+ *   Pi → Arduino:   "move_mm:{signed_mm}\n"
+ *                    "rotate_deg:{signed_deg}\n"
  *   Arduino → Pi:   "E:{left_ticks},{right_ticks}\n"
  *
- * Subscribes:  /cmd_vel  (geometry_msgs/Twist or TwistStamped)
+ * Subscribes:  /move_distance_mm  (std_msgs/Int32)
+ *              /rotate_angle_deg  (std_msgs/Int32)
  * Publishes:   /left_ticks  (std_msgs/Int32)
  *              /right_ticks (std_msgs/Int32)
  *
@@ -17,7 +19,6 @@
  */
 
 #include <rclcpp/rclcpp.hpp>
-#include <geometry_msgs/msg/twist.hpp>
 #include <std_msgs/msg/int32.hpp>
 
 #include <fcntl.h>
@@ -28,7 +29,6 @@
 
 #include <string>
 #include <sstream>
-#include <iomanip>
 #include <thread>
 #include <atomic>
 
@@ -57,10 +57,16 @@ public:
     left_ticks_pub_  = this->create_publisher<std_msgs::msg::Int32>("/left_ticks",  10);
     right_ticks_pub_ = this->create_publisher<std_msgs::msg::Int32>("/right_ticks", 10);
 
-    // Subscribe to /cmd_vel — Nav2 publishes Twist here
-    cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
-      "/cmd_vel", 10,
-      std::bind(&SerialBridge::cmd_vel_callback, this, std::placeholders::_1)
+    // Exact-distance command in millimeters (signed): +mm forward, -mm backward
+    move_mm_sub_ = this->create_subscription<std_msgs::msg::Int32>(
+      "/move_distance_mm", 10,
+      std::bind(&SerialBridge::move_mm_callback, this, std::placeholders::_1)
+    );
+
+    // Exact-rotation command in degrees (signed): +deg CCW, -deg CW
+    rotate_deg_sub_ = this->create_subscription<std_msgs::msg::Int32>(
+      "/rotate_angle_deg", 10,
+      std::bind(&SerialBridge::rotate_deg_callback, this, std::placeholders::_1)
     );
 
     // Background thread reads encoder lines from Arduino
@@ -126,20 +132,20 @@ private:
     }
   }
 
-  // ================================================================
-  // /cmd_vel CALLBACK
-  // Converts Twist → "V:{linear},{angular}\n" → Arduino
-  // ================================================================
-  void cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg)
+  void move_mm_callback(const std_msgs::msg::Int32::SharedPtr msg)
   {
     std::ostringstream oss;
-    oss << "V:"
-        << std::fixed << std::setprecision(4) << msg->linear.x
-        << ","
-        << std::fixed << std::setprecision(4) << msg->angular.z
-        << "\n";
-
+    oss << "move_mm:" << msg->data << "\n";
     write_serial(oss.str());
+    RCLCPP_INFO(this->get_logger(), "Sent move_mm command: %d", msg->data);
+  }
+
+  void rotate_deg_callback(const std_msgs::msg::Int32::SharedPtr msg)
+  {
+    std::ostringstream oss;
+    oss << "rotate_deg:" << msg->data << "\n";
+    write_serial(oss.str());
+    RCLCPP_INFO(this->get_logger(), "Sent rotate_deg command: %d", msg->data);
   }
 
   // ================================================================
@@ -214,7 +220,8 @@ private:
   }
 
   // Members
-  rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
+  rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr move_mm_sub_;
+  rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr rotate_deg_sub_;
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr left_ticks_pub_;
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr right_ticks_pub_;
 

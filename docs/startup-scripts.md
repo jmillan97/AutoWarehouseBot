@@ -16,6 +16,8 @@ They are meant to be run from WSL.
 - `scripts/stop_robot_stack.sh`
   Kills the known ROS processes on both WSL and the Pi so you do not have to
   hunt down hung processes manually
+- `scripts/drive_test.sh`
+  Legacy `/cmd_vel` test publisher (movement pipeline now uses distance/angle topics)
 
 ## Prerequisites
 
@@ -27,6 +29,28 @@ Before using the scripts, both machines should already have:
 See the local troubleshooting docs for the exact file contents.
 
 The WSL machine must also be able to SSH into the Pi.
+
+## First Troubleshoot Step (Always)
+
+If topics are missing on WSL, treat this as a networking/firewall issue first.
+Do this before debugging launch files or hardware nodes.
+
+1. Run demo-node sanity check:
+On Pi:
+```bash
+source ~/.ros_network_env
+ros2 run demo_nodes_cpp talker
+```
+On WSL:
+```bash
+source ~/.ros_network_env
+ros2 run demo_nodes_cpp listener
+```
+
+2. If listener does not receive messages, fix Windows firewall rule first (see
+`troubleshooting/network-fixes.md`).
+
+3. Only after demo nodes work should you continue to Pi bringup and WSL nav.
 
 ## SSH Authentication
 
@@ -93,6 +117,30 @@ export PI_PASSWORD='group4pi'
 ./scripts/stop_robot_stack.sh
 ```
 
+### Movement Commands (current API)
+
+After Pi bringup is running, use exact linear/angle commands:
+
+```bash
+source ~/.ros_network_env
+ros2 topic pub --once /move_distance_mm std_msgs/msg/Int32 "{data: 500}"
+ros2 topic pub --once /move_distance_mm std_msgs/msg/Int32 "{data: -300}"
+ros2 topic pub --once /rotate_angle_deg std_msgs/msg/Int32 "{data: 90}"
+ros2 topic pub --once /rotate_angle_deg std_msgs/msg/Int32 "{data: -45}"
+```
+
+Safety note:
+
+- Keep wheels lifted or clear space for first test
+- Verify ticks (`/left_ticks`, `/right_ticks`) respond during command execution
+
+Movement topic contract:
+
+- `/move_distance_mm` (signed mm): positive forward, negative backward
+- `/rotate_angle_deg` (signed deg): positive CCW, negative CW
+
+See `docs/firmware-protocol.md` for protocol details and tuning notes.
+
 ## What Gets Killed
 
 The stop script intentionally kills the usual bringup processes so stale copies
@@ -122,3 +170,42 @@ On WSL it targets things like:
 During debugging, duplicate Pi bringups and duplicate sensor nodes caused a lot
 of confusion. These scripts are meant to keep startup and shutdown consistent so
 you do not have to manually clean up zombie processes.
+
+## Manual Recovery (Known-Good)
+
+If the PC/WSL side is lagging hard, a full PC restart can clear stuck network
+state and make ROS discovery stable again.
+
+After reboot, this manual Pi-first flow is a known-good recovery:
+
+1. On Pi:
+
+```bash
+source ~/.ros_network_env
+ros2 launch embedded robot_bringup.launch.py
+```
+
+2. In another Pi terminal, verify:
+
+```bash
+source ~/.ros_network_env
+ros2 node list
+ros2 topic list
+```
+
+Expected healthy baseline includes nodes like:
+
+- `/imu_node`
+- `/rplidar_node`
+- `/usb_cam`
+
+Expected topic set includes at least:
+
+- `/camera/image_raw`
+- `/imu/data`
+- `/odom`
+- `/cmd_vel`
+- `/tf`
+- `/tf_static`
+
+If this looks good on Pi, then move to WSL and start listener/navigation side.
