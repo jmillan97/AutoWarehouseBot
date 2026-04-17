@@ -105,10 +105,11 @@ def generate_launch_description():
     )
 
     # ---- 2. Serial bridge (Arduino ↔ ROS2) ----
+    # Python bridge is used for faster iteration while movement protocol settles.
     # Arduino confirmed on /dev/ttyUSB0
     serial_bridge = Node(
         package='embedded',
-        executable='serial_bridge',
+        executable='serial_bridge_py',
         name='serial_bridge',
         output='screen',
         parameters=[{

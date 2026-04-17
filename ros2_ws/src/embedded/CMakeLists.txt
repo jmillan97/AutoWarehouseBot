@@ -32,4 +32,9 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
   RENAME imu_node
 )
+install(PROGRAMS
+  scripts/serial_bridge_py.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME serial_bridge_py
+)
 ament_package()

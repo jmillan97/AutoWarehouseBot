@@ -19,6 +19,12 @@ They are meant to be run from WSL.
 - `scripts/drive_test.sh`
   Legacy `/cmd_vel` test publisher (movement pipeline now uses distance/angle topics)
 
+Bridge implementation note:
+
+- `robot_bringup.launch.py` now runs `serial_bridge_py` (Python) as node name
+  `/serial_bridge`
+- This is intentional for faster iteration and easier debugging on Pi
+
 ## Prerequisites
 
 Before using the scripts, both machines should already have:
@@ -128,6 +134,9 @@ ros2 topic pub --once /move_distance_mm std_msgs/msg/Int32 "{data: -300}"
 ros2 topic pub --once /rotate_angle_deg std_msgs/msg/Int32 "{data: 90}"
 ros2 topic pub --once /rotate_angle_deg std_msgs/msg/Int32 "{data: -45}"
 ```
+
+These commands can be run from either Pi or WSL (after sourcing that machine's
+`~/.ros_network_env`).
 
 Safety note:
 
