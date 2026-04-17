@@ -138,6 +138,33 @@ ros2 topic pub --once /rotate_angle_deg std_msgs/msg/Int32 "{data: -45}"
 These commands can be run from either Pi or WSL (after sourcing that machine's
 `~/.ros_network_env`).
 
+Command convention:
+
+- `/move_distance_mm`
+  - positive value = move forward
+  - negative value = move backward
+  - units are millimeters
+- `/rotate_angle_deg`
+  - positive value = rotate counterclockwise
+  - negative value = rotate clockwise
+  - units are degrees
+
+Examples:
+
+```bash
+# Forward 300 mm
+ros2 topic pub --once /move_distance_mm std_msgs/msg/Int32 "{data: 300}"
+
+# Backward 300 mm
+ros2 topic pub --once /move_distance_mm std_msgs/msg/Int32 "{data: -300}"
+
+# Rotate left / CCW by 45 deg
+ros2 topic pub --once /rotate_angle_deg std_msgs/msg/Int32 "{data: 45}"
+
+# Rotate right / CW by 45 deg
+ros2 topic pub --once /rotate_angle_deg std_msgs/msg/Int32 "{data: -45}"
+```
+
 Safety note:
 
 - Keep wheels lifted or clear space for first test

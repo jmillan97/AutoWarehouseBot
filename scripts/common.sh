@@ -28,12 +28,16 @@ remote_ssh() {
 }
 
 remote_bash() {
-  local quoted
-  printf -v quoted '%q' "$1"
-  remote_ssh "bash -lc ${quoted}"
+  remote_ssh "bash -s" <<< "$1"
 }
 
 source_local_ros_env() {
+  local had_nounset=0
+  if [[ $- == *u* ]]; then
+    had_nounset=1
+    set +u
+  fi
+
   if [[ -f "${HOME}/.ros_network_env" ]]; then
     # shellcheck disable=SC1090
     source "${HOME}/.ros_network_env"
@@ -47,6 +51,10 @@ source_local_ros_env() {
     export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION_VALUE}"
     export ROS_DOMAIN_ID="${ROS_DOMAIN_ID_VALUE}"
     export ROS_LOCALHOST_ONLY="${ROS_LOCALHOST_ONLY_VALUE}"
+  fi
+
+  if [[ "${had_nounset}" -eq 1 ]]; then
+    set -u
   fi
 }
 

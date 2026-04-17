@@ -14,10 +14,12 @@ export FASTDDS_DEFAULT_PROFILES_FILE='${PI_FASTDDS}'
 export RMW_IMPLEMENTATION='${RMW_IMPLEMENTATION_VALUE}'
 export ROS_DOMAIN_ID='${ROS_DOMAIN_ID_VALUE}'
 export ROS_LOCALHOST_ONLY='${ROS_LOCALHOST_ONLY_VALUE}'
+set +u
 source /opt/ros/kilted/setup.bash
 if [ -f '${PI_WORKSPACE}/install/setup.bash' ]; then
   source '${PI_WORKSPACE}/install/setup.bash'
 fi
+set -u
 nohup ros2 launch embedded robot_bringup.launch.py > '${PI_LOG_PATH}' 2>&1 < /dev/null &
 echo PI_PID=\$!
 echo PI_LOG='${PI_LOG_PATH}'
