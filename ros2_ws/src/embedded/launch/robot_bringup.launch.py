@@ -182,7 +182,7 @@ def generate_launch_description():
         'image_width':     640,
         'image_height':    480,
         'framerate':       30.0,
-        'pixel_format':    'mjpeg',
+        'pixel_format':    'raw_mjpeg',
         'camera_frame_id': 'camera_optical_link',
     }
     camera_remaps = [
