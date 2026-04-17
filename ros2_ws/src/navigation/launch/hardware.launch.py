@@ -24,6 +24,7 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, Command
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
@@ -40,12 +41,14 @@ def generate_launch_description():
     nav2_params = os.path.join(wb_navigation_dir, 'config', 'nav2_params.yaml')
     urdf_file   = os.path.join(wb_description_dir, 'urdf', 'warehouse_bot.urdf.xacro')
     ekf_config  = os.path.join(wb_embedded_dir,    'config', 'ekf_params.yaml')
+    yolo_model  = os.path.expanduser('~/warehouse_project/yolov8n.pt')
 
     use_sim_time = LaunchConfiguration('use_sim_time')
 
     args = [
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('map', default_value=map_file),
+        DeclareLaunchArgument('use_yolo', default_value='false'),
     ]
 
     robot_description = ParameterValue(
@@ -97,8 +100,29 @@ def generate_launch_description():
         }.items()
     )
 
+    yolo_detector = Node(
+        package='perception_yolo',
+        executable='yolo_detector',
+        name='yolo_detector',
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('use_yolo')),
+        parameters=[{
+            'image_topic': '/camera/image_raw',
+            'annotated_image_topic': '/perception/yolo/annotated_image',
+            'detections_topic': '/perception/yolo/detections',
+            'people_topic': '/perception/yolo/people',
+            'model_path': yolo_model,
+            'confidence_threshold': 0.4,
+            'person_only': False,
+            'publish_annotated_image': False,
+            'display_overlay': True,
+            'display_window_name': 'YOLO Overlay',
+        }],
+    )
+
     return LaunchDescription(args + [
         robot_state_publisher,
         ekf,
+        yolo_detector,
         nav2,
     ])

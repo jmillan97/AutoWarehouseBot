@@ -5,6 +5,14 @@ shared with the team.
 
 They are meant to be run from WSL.
 
+![1776411950099](image/startup-scripts/1776411950099.png)
+
+![1776412133851](image/startup-scripts/1776412133851.png)
+
+![1776412133851](image/startup-scripts/1776412133851.png)
+
+![1776411969507](image/startup-scripts/1776411969507.png)
+
 ## What They Do
 
 - `scripts/start_pi_robot.sh`
@@ -42,20 +50,22 @@ If topics are missing on WSL, treat this as a networking/firewall issue first.
 Do this before debugging launch files or hardware nodes.
 
 1. Run demo-node sanity check:
-On Pi:
+   On Pi:
+
 ```bash
 source ~/.ros_network_env
 ros2 run demo_nodes_cpp talker
 ```
+
 On WSL:
+
 ```bash
 source ~/.ros_network_env
 ros2 run demo_nodes_cpp listener
 ```
 
 2. If listener does not receive messages, fix Windows firewall rule first (see
-`troubleshooting/network-fixes.md`).
-
+   `troubleshooting/network-fixes.md`).
 3. Only after demo nodes work should you continue to Pi bringup and WSL nav.
 
 ## SSH Authentication
@@ -164,6 +174,46 @@ ros2 topic pub --once /rotate_angle_deg std_msgs/msg/Int32 "{data: 45}"
 # Rotate right / CW by 45 deg
 ros2 topic pub --once /rotate_angle_deg std_msgs/msg/Int32 "{data: -45}"
 ```
+
+### Camera Viewing (current working setup)
+
+The current working camera path is:
+
+- Pi `usb_cam` publishes honest decoded frames with:
+  - `image_width: 320`
+  - `image_height: 240`
+  - `framerate: 10.0`
+  - `pixel_format: mjpeg2rgb`
+- WSL viewer:
+
+```bash
+cd ~/warehouse_project
+source ~/.ros_network_env
+python3 scripts/view_camera.py
+```
+
+Useful quick checks:
+
+```bash
+source ~/.ros_network_env
+ros2 topic hz /camera/image_raw
+ros2 topic echo --once /camera/camera_info
+```
+
+Important note:
+
+- plain `pixel_format: mjpeg` is not supported by this `usb_cam` ROS driver
+- `raw_mjpeg` is efficient, but on this setup it produced misleading raw-topic behavior
+- `mjpeg2rgb` is the honest and currently reliable path
+
+Latency / bandwidth suggestions if camera is still too slow:
+
+- lower framerate further, for example from `10.0` to `5.0`
+- lower resolution further, for example from `320x240` to `160x120`
+- keep RViz off while testing camera over Wi-Fi
+- avoid multiple WSL viewers or extra `ros2 topic echo` subscribers on image topics
+- close unused nodes on the Pi, especially anything heavy on CPU
+- if you later need the absolute lowest network load, revisit a true compressed-image transport path, but only if the driver publishes it honestly
 
 Safety note:
 
