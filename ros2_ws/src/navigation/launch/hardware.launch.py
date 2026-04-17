@@ -115,8 +115,8 @@ def generate_launch_description():
             'model_path': yolo_model,
             'confidence_threshold': 0.4,
             'person_only': False,
-            'publish_annotated_image': True,
-            'display_overlay': False,
+            'publish_annotated_image': False,
+            'display_overlay': True,
             'display_window_name': 'YOLO Overlay',
         }],
     )

@@ -3,7 +3,6 @@ import queue
 import os
 import re
 import threading
-import time
 import tkinter as tk
 from tkinter import ttk
 
@@ -12,16 +11,14 @@ import rclpy
 from PIL import Image, ImageTk
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
-from sensor_msgs.msg import CompressedImage, Image as RosImage
+from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import Int32
 
 
 CAMERA_TOPIC = os.environ.get('OPERATOR_CAMERA_TOPIC', '/camera/image_raw/compressed')
-OVERLAY_TOPIC = os.environ.get('OPERATOR_OVERLAY_TOPIC', '/perception/yolo/annotated_image')
 APP_TITLE = 'Warehouse Bot Operator Console'
 VIDEO_SIZE = (640, 480)
 LOG_MAX_LINES = 200
-OVERLAY_RECENCY_SEC = 1.0
 
 
 class OperatorConsoleNode(Node):
@@ -29,9 +26,6 @@ class OperatorConsoleNode(Node):
         super().__init__('operator_console')
         self.ui_queue = ui_queue
         self.latest_camera_frame = None
-        self.latest_overlay_frame = None
-        self.latest_camera_time = 0.0
-        self.latest_overlay_time = 0.0
         self.frame_lock = threading.Lock()
 
         self.move_pub = self.create_publisher(Int32, '/move_distance_mm', 10)
@@ -43,14 +37,7 @@ class OperatorConsoleNode(Node):
             self._on_compressed_frame,
             qos_profile_sensor_data,
         )
-        self.create_subscription(
-            RosImage,
-            OVERLAY_TOPIC,
-            self._on_overlay_frame,
-            qos_profile_sensor_data,
-        )
         self.ui_queue.put(('log', f'Subscribed to {CAMERA_TOPIC}'))
-        self.ui_queue.put(('log', f'Watching for YOLO overlay on {OVERLAY_TOPIC}'))
 
     def _on_compressed_frame(self, msg: CompressedImage) -> None:
         data = np.frombuffer(msg.data, dtype=np.uint8)
@@ -60,24 +47,9 @@ class OperatorConsoleNode(Node):
             return
         with self.frame_lock:
             self.latest_camera_frame = frame
-            self.latest_camera_time = time.time()
-
-    def _on_overlay_frame(self, msg: RosImage) -> None:
-        frame = decode_raw_image(msg)
-        if frame is None:
-            return
-        with self.frame_lock:
-            self.latest_overlay_frame = frame
-            self.latest_overlay_time = time.time()
 
     def get_display_frame(self):
         with self.frame_lock:
-            now = time.time()
-            if (
-                self.latest_overlay_frame is not None
-                and now - self.latest_overlay_time <= OVERLAY_RECENCY_SEC
-            ):
-                return self.latest_overlay_frame.copy(), 'YOLO overlay'
             if self.latest_camera_frame is not None:
                 return self.latest_camera_frame.copy(), 'camera'
         return None, 'waiting'
@@ -97,24 +69,6 @@ def cv2_decode(data: np.ndarray):
     import cv2
 
     return cv2.imdecode(data, cv2.IMREAD_COLOR)
-
-
-def decode_raw_image(msg: RosImage):
-    import cv2
-
-    try:
-        data = np.frombuffer(msg.data, dtype=np.uint8)
-        if msg.encoding == 'rgb8':
-            frame = data.reshape((msg.height, msg.width, 3))
-            return cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        if msg.encoding == 'bgr8':
-            return data.reshape((msg.height, msg.width, 3))
-        if msg.encoding == 'mono8':
-            frame = data.reshape((msg.height, msg.width))
-            return cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
-    except ValueError:
-        return None
-    return None
 
 
 def bgr_to_tk_image(frame, size):

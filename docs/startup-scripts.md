@@ -244,7 +244,6 @@ python3 scripts/operator_console.py
 This UI:
 
 - subscribes to `/camera/image_raw/compressed`
-- automatically switches to `/perception/yolo/annotated_image` when YOLO is publishing it
 - shows the live camera feed
 - publishes movement commands to:
   - `/move_distance_mm`
@@ -264,8 +263,9 @@ rotate_deg -90
 help
 ```
 
-If you want YOLO overlay inside the operator console, run the WSL stack with
-YOLO enabled so it publishes `/perception/yolo/annotated_image`:
+The operator console intentionally stays on the plain camera feed for lower
+latency and better stability. If you want YOLO visuals, run the WSL stack with
+YOLO enabled in its separate local overlay window:
 
 ```bash
 cd ~/warehouse_project/ros2_ws
