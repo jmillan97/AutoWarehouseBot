@@ -1,80 +1,50 @@
-# Firmware Protocol Notes
+# Firmware + Bridge Protocol
 
-This file documents the Arduino firmware command protocol and current ROS2
-movement interfaces.
+This project uses the **known-good legacy Arduino firmware** for motor control.
+Movement primitives are implemented in `serial_bridge` on the Pi.
 
-## Why We Changed It
+## Current Architecture
 
-The original firmware accepted manual commands only and not structured
-distance/angle commands from ROS.
-
-## Original Firmware Behavior
-
-- Accepted:
+- Arduino firmware accepts legacy serial commands:
   - `speed:<0-255>`
   - `w`, `a`, `s`, `d`, `q`, `e`, `x`, `r`
-- Published encoder feedback:
+- Arduino publishes encoder lines:
   - `E:<left_ticks>,<right_ticks>`
-- Did **not** parse ROS-style velocity commands.
+- `serial_bridge` translates ROS movement topics into those legacy commands.
 
-## Current Firmware Behavior (Movement API)
+## ROS Movement Topics (authoritative API)
 
-Still supports all original commands, plus:
+- `/move_distance_mm` (`std_msgs/msg/Int32`)
+  - signed millimeters: `+` forward, `-` backward
+- `/rotate_angle_deg` (`std_msgs/msg/Int32`)
+  - signed degrees: `+` CCW, `-` CW
 
-- `move_mm:<signed_mm>`
-  - New exact-distance mode using encoder ticks
-  - `move_mm:500` moves forward ~500 mm
-  - `move_mm:-250` moves backward ~250 mm
-  - Stops automatically when target ticks reached
-  - Emits ACK lines:
-    - `ACK: MOVE_START ...`
-    - `ACK: MOVE_DONE`
-    - `ACK: MOVE_TIMEOUT`
+## Bridge Translation Logic
 
-- `rotate_deg:<signed_deg>`
-  - Exact-angle mode using encoder ticks + wheel separation model
-  - `rotate_deg:90` rotates CCW about +90 deg
-  - `rotate_deg:-45` rotates CW about -45 deg
-  - Emits ACK lines:
-    - `ACK: ROTATE_START ...`
-    - `ACK: ROTATE_DONE`
-    - `ACK: ROTATE_TIMEOUT`
+`serial_bridge` behavior:
 
-## ROS Bridge Mapping
+1. Receives `/move_distance_mm` or `/rotate_angle_deg`
+2. Converts target (mm/deg) to encoder ticks using wheel model params
+3. Sends one `speed:<value>` command
+4. Repeatedly sends legacy motion command (`w/s/q/e`) to keep watchdog alive
+5. Monitors encoder delta from `E:left,right`
+6. Sends `x` stop when target ticks reached (or timeout)
 
-`serial_bridge` mappings now:
+This keeps firmware unchanged while giving deterministic movement commands from
+ROS.
 
-- `/move_distance_mm` (`std_msgs/msg/Int32`) -> `move_mm:<signed_mm>`
-- `/rotate_angle_deg` (`std_msgs/msg/Int32`) -> `rotate_deg:<signed_deg>`
-- Arduino encoder lines `E:l,r` -> `/left_ticks`, `/right_ticks`
+## Why This Model
 
-## How To Use Exact Distance From ROS
+- Preserves known-good motor behavior in firmware
+- Avoids re-debugging low-level motor logic
+- Keeps movement API clean on ROS side (distance + angle only)
 
-On Pi or WSL (with ROS env sourced and bridge running), linear move:
+## Test Commands
 
 ```bash
+source ~/.ros_network_env
 ros2 topic pub --once /move_distance_mm std_msgs/msg/Int32 "{data: 500}"
-```
-
-Backward:
-
-```bash
 ros2 topic pub --once /move_distance_mm std_msgs/msg/Int32 "{data: -300}"
-```
-
-Rotate:
-
-```bash
 ros2 topic pub --once /rotate_angle_deg std_msgs/msg/Int32 "{data: 90}"
 ros2 topic pub --once /rotate_angle_deg std_msgs/msg/Int32 "{data: -45}"
 ```
-
-## Tuning Notes
-
-- Distance accuracy depends on:
-  - wheel radius
-  - encoder CPR
-  - gear ratio
-  - wheel slip / floor
-- Constants are currently aligned with `wheel_odometry` defaults.
-- Recalibrate with measured runs (e.g., command 1000 mm, measure actual).

@@ -1,21 +1,22 @@
 /*
  * serial_bridge.cpp
  * =================
- * Raspberry Pi ROS2 node — bridges movement command topics to Arduino serial
+ * Raspberry Pi ROS2 node — bridges ROS movement topics to legacy Arduino
+ * single-character commands.
  *
- * Protocol:
- *   Pi → Arduino:   "move_mm:{signed_mm}\n"
- *                    "rotate_deg:{signed_deg}\n"
- *   Arduino → Pi:   "E:{left_ticks},{right_ticks}\n"
+ * Legacy protocol expected by known-good firmware:
+ *   Pi → Arduino: "speed:{0-255}\n", "w\n", "s\n", "q\n", "e\n", "x\n", "r\n"
+ *   Arduino → Pi: "E:{left_ticks},{right_ticks}\n"
  *
- * Subscribes:  /move_distance_mm  (std_msgs/Int32)
- *              /rotate_angle_deg  (std_msgs/Int32)
- * Publishes:   /left_ticks  (std_msgs/Int32)
- *              /right_ticks (std_msgs/Int32)
+ * ROS command API:
+ *   /move_distance_mm (std_msgs/Int32)  signed mm, +forward -backward
+ *   /rotate_angle_deg (std_msgs/Int32)  signed deg, +ccw -cw
  *
- * Parameters:
- *   serial_port  (string)  default: /dev/ttyUSB0
- *   serial_baud  (int)     default: 9600
+ * Feedback:
+ *   /left_ticks, /right_ticks
+ *
+ * This preserves old firmware motor behavior while enabling deterministic
+ * movement primitives from ROS.
  */
 
 #include <rclcpp/rclcpp.hpp>
@@ -31,17 +32,41 @@
 #include <sstream>
 #include <thread>
 #include <atomic>
+#include <mutex>
+#include <cmath>
+#include <chrono>
+#include <cstdlib>
 
 class SerialBridge : public rclcpp::Node
 {
 public:
-  SerialBridge() : Node("serial_bridge"), running_(true), serial_fd_(-1)
+  SerialBridge() : Node("serial_bridge"), serial_fd_(-1), running_(true)
   {
     this->declare_parameter<std::string>("serial_port", "/dev/ttyUSB0");
     this->declare_parameter<int>("serial_baud", 115200);
+    this->declare_parameter<int>("command_speed", 180);
+    this->declare_parameter<double>("wheel_radius", 0.04);
+    this->declare_parameter<double>("wheel_separation", 0.21);
+    this->declare_parameter<double>("encoder_cpr", 2.0);
+    this->declare_parameter<double>("gear_ratio", 30.0);
+    this->declare_parameter<double>("command_timeout_s", 15.0);
+    this->declare_parameter<double>("command_rate_hz", 10.0);
 
     std::string port = this->get_parameter("serial_port").as_string();
     int baud         = this->get_parameter("serial_baud").as_int();
+    command_speed_   = this->get_parameter("command_speed").as_int();
+    wheel_radius_    = this->get_parameter("wheel_radius").as_double();
+    wheel_sep_       = this->get_parameter("wheel_separation").as_double();
+    encoder_cpr_     = this->get_parameter("encoder_cpr").as_double();
+    gear_ratio_      = this->get_parameter("gear_ratio").as_double();
+    command_timeout_s_ = this->get_parameter("command_timeout_s").as_double();
+    command_rate_hz_ = this->get_parameter("command_rate_hz").as_double();
+
+    if (command_speed_ < 0) command_speed_ = 0;
+    if (command_speed_ > 255) command_speed_ = 255;
+
+    const double effective_cpr = encoder_cpr_ * gear_ratio_;
+    ticks_to_meters_ = (2.0 * M_PI * wheel_radius_) / effective_cpr;
 
     RCLCPP_INFO(this->get_logger(), "Opening %s @ %d baud", port.c_str(), baud);
 
@@ -71,6 +96,13 @@ public:
 
     // Background thread reads encoder lines from Arduino
     read_thread_ = std::thread(&SerialBridge::read_loop, this);
+
+    // Control loop keeps legacy command alive until encoder target is reached.
+    const auto period = std::chrono::duration<double>(1.0 / command_rate_hz_);
+    control_timer_ = this->create_wall_timer(
+      std::chrono::duration_cast<std::chrono::nanoseconds>(period),
+      std::bind(&SerialBridge::control_loop, this)
+    );
 
     RCLCPP_INFO(this->get_logger(), "serial_bridge ready");
   }
@@ -132,20 +164,38 @@ private:
     }
   }
 
-  void move_mm_callback(const std_msgs::msg::Int32::SharedPtr msg)
+  void send_legacy_command(const char * cmd)
+  {
+    std::string msg(cmd);
+    msg.push_back('\n');
+    write_serial(msg);
+  }
+
+  void send_speed_once()
   {
     std::ostringstream oss;
-    oss << "move_mm:" << msg->data << "\n";
+    oss << "speed:" << command_speed_ << "\n";
     write_serial(oss.str());
-    RCLCPP_INFO(this->get_logger(), "Sent move_mm command: %d", msg->data);
+  }
+
+  void move_mm_callback(const std_msgs::msg::Int32::SharedPtr msg)
+  {
+    int value = msg->data;
+    if (value == 0) {
+      cancel_motion("Received zero distance command");
+      return;
+    }
+    start_motion(MotionType::Linear, value);
   }
 
   void rotate_deg_callback(const std_msgs::msg::Int32::SharedPtr msg)
   {
-    std::ostringstream oss;
-    oss << "rotate_deg:" << msg->data << "\n";
-    write_serial(oss.str());
-    RCLCPP_INFO(this->get_logger(), "Sent rotate_deg command: %d", msg->data);
+    int value = msg->data;
+    if (value == 0) {
+      cancel_motion("Received zero rotation command");
+      return;
+    }
+    start_motion(MotionType::Rotate, value);
   }
 
   // ================================================================
@@ -205,6 +255,12 @@ private:
       int32_t left_ticks  = std::stoi(data.substr(0, comma));
       int32_t right_ticks = std::stoi(data.substr(comma + 1));
 
+      {
+        std::lock_guard<std::mutex> lk(motion_mtx_);
+        current_left_ticks_ = left_ticks;
+        current_right_ticks_ = right_ticks;
+      }
+
       auto left_msg  = std_msgs::msg::Int32();
       auto right_msg = std_msgs::msg::Int32();
       left_msg.data  = left_ticks;
@@ -219,15 +275,130 @@ private:
     }
   }
 
+  enum class MotionType { None, Linear, Rotate };
+
+  void start_motion(MotionType type, int signed_value)
+  {
+    std::lock_guard<std::mutex> lk(motion_mtx_);
+
+    const int direction = (signed_value > 0) ? 1 : -1;
+    const int abs_value = std::abs(signed_value);
+
+    long target_ticks = 0;
+    if (type == MotionType::Linear) {
+      const double meters = static_cast<double>(abs_value) / 1000.0;
+      target_ticks = static_cast<long>(std::lround(meters / ticks_to_meters_));
+    } else {
+      const double theta_rad = static_cast<double>(abs_value) * M_PI / 180.0;
+      const double wheel_arc = (wheel_sep_ / 2.0) * theta_rad;
+      target_ticks = static_cast<long>(std::lround(wheel_arc / ticks_to_meters_));
+    }
+    if (target_ticks < 1) target_ticks = 1;
+
+    motion_active_ = true;
+    motion_type_ = type;
+    motion_direction_ = direction;
+    motion_target_ticks_ = target_ticks;
+    motion_start_left_ticks_ = current_left_ticks_;
+    motion_start_right_ticks_ = current_right_ticks_;
+    motion_start_time_ = this->now();
+    speed_sent_for_motion_ = false;
+
+    RCLCPP_INFO(
+      this->get_logger(),
+      "Motion start: type=%s value=%d target_ticks=%ld dir=%d",
+      (type == MotionType::Linear ? "linear" : "rotate"),
+      signed_value,
+      target_ticks,
+      direction
+    );
+  }
+
+  void cancel_motion(const char * reason)
+  {
+    std::lock_guard<std::mutex> lk(motion_mtx_);
+    motion_active_ = false;
+    motion_type_ = MotionType::None;
+    motion_direction_ = 0;
+    motion_target_ticks_ = 0;
+    send_legacy_command("x");
+    RCLCPP_INFO(this->get_logger(), "Motion cancelled: %s", reason);
+  }
+
+  void control_loop()
+  {
+    std::lock_guard<std::mutex> lk(motion_mtx_);
+    if (!motion_active_) return;
+
+    const auto now = this->now();
+    const double elapsed = (now - motion_start_time_).seconds();
+    if (elapsed > command_timeout_s_) {
+      send_legacy_command("x");
+      RCLCPP_WARN(this->get_logger(), "Motion timeout after %.2fs", elapsed);
+      motion_active_ = false;
+      motion_type_ = MotionType::None;
+      return;
+    }
+
+    const long dleft = std::labs(current_left_ticks_ - motion_start_left_ticks_);
+    const long dright = std::labs(current_right_ticks_ - motion_start_right_ticks_);
+    const long traveled = (dleft + dright) / 2;
+
+    if (traveled >= motion_target_ticks_) {
+      send_legacy_command("x");
+      RCLCPP_INFO(this->get_logger(), "Motion complete: traveled=%ld target=%ld", traveled, motion_target_ticks_);
+      motion_active_ = false;
+      motion_type_ = MotionType::None;
+      return;
+    }
+
+    if (!speed_sent_for_motion_) {
+      send_speed_once();
+      speed_sent_for_motion_ = true;
+    }
+
+    if (motion_type_ == MotionType::Linear) {
+      if (motion_direction_ > 0) send_legacy_command("w");
+      else send_legacy_command("s");
+    } else if (motion_type_ == MotionType::Rotate) {
+      if (motion_direction_ > 0) send_legacy_command("q");
+      else send_legacy_command("e");
+    }
+  }
+
   // Members
   rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr move_mm_sub_;
   rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr rotate_deg_sub_;
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr left_ticks_pub_;
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr right_ticks_pub_;
+  rclcpp::TimerBase::SharedPtr control_timer_;
+
+  // Motion model / command params
+  int command_speed_{180};
+  double wheel_radius_{0.04};
+  double wheel_sep_{0.21};
+  double encoder_cpr_{2.0};
+  double gear_ratio_{30.0};
+  double ticks_to_meters_{0.0};
+  double command_timeout_s_{15.0};
+  double command_rate_hz_{10.0};
 
   int serial_fd_;
   std::atomic<bool> running_;
   std::thread read_thread_;
+
+  // Shared encoder state + active motion control
+  std::mutex motion_mtx_;
+  int32_t current_left_ticks_{0};
+  int32_t current_right_ticks_{0};
+  bool motion_active_{false};
+  MotionType motion_type_{MotionType::None};
+  int motion_direction_{0};
+  long motion_target_ticks_{0};
+  int32_t motion_start_left_ticks_{0};
+  int32_t motion_start_right_ticks_{0};
+  rclcpp::Time motion_start_time_;
+  bool speed_sent_for_motion_{false};
 };
 
 int main(int argc, char * argv[])
