@@ -230,6 +230,51 @@ LiDAR note:
 ros2 launch embedded robot_bringup.launch.py enable_lidar:=true
 ```
 
+### Operator Console (video + movement command entry)
+
+For a single WSL operator window with live video on top and a command console
+underneath:
+
+```bash
+cd ~/warehouse_project
+source ~/.ros_network_env
+python3 scripts/operator_console.py
+```
+
+This UI:
+
+- subscribes to `/camera/image_raw/compressed`
+- automatically switches to `/perception/yolo/annotated_image` when YOLO is publishing it
+- shows the live camera feed
+- publishes movement commands to:
+  - `/move_distance_mm`
+  - `/rotate_angle_deg`
+
+Supported command examples:
+
+```text
+forward 3 ft
+back 250 mm
+move 1.2 m
+left 90 deg
+right 45 deg
+rotate -30 deg
+move_mm 500
+rotate_deg -90
+help
+```
+
+If you want YOLO overlay inside the operator console, run the WSL stack with
+YOLO enabled so it publishes `/perception/yolo/annotated_image`:
+
+```bash
+cd ~/warehouse_project/ros2_ws
+source /opt/ros/kilted/setup.bash
+source install/setup.bash
+source ~/.ros_network_env
+ros2 launch navigation hardware.launch.py use_rviz:=false use_yolo:=true
+```
+
 Safety note:
 
 - Keep wheels lifted or clear space for first test
