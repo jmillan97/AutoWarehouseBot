@@ -28,9 +28,9 @@ Usage (on Pi):
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, TimerAction
+from launch.actions import DeclareLaunchArgument, TimerAction, RegisterEventHandler
 from launch.substitutions import LaunchConfiguration, Command
-from launch_ros.actions import Node, RegisterEventHandler, TimerAction
+from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch.event_handlers import OnProcessExit
 
@@ -181,7 +181,7 @@ def generate_launch_description():
         'image_width':     640,
         'image_height':    480,
         'framerate':       30.0,
-        'pixel_format':    'mjpeg2rgb',
+        'pixel_format':    'mjpeg',
         'camera_frame_id': 'camera_optical_link',
     }
     camera_remaps = [
