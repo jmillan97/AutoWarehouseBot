@@ -180,10 +180,11 @@ ros2 topic pub --once /rotate_angle_deg std_msgs/msg/Int32 "{data: -45}"
 The current working camera path is:
 
 - Pi `usb_cam` publishes honest decoded frames with:
+- Pi `usb_cam` publishes honest decoded frames with:
   - `image_width: 320`
   - `image_height: 240`
   - `framerate: 10.0`
-  - `pixel_format: mjpeg2rgb`
+  - `pixel_format: yuyv2rgb`
 - WSL viewer:
 
 ```bash
@@ -204,7 +205,8 @@ Important note:
 
 - plain `pixel_format: mjpeg` is not supported by this `usb_cam` ROS driver
 - `raw_mjpeg` is efficient, but on this setup it produced misleading raw-topic behavior
-- `mjpeg2rgb` is the honest and currently reliable path
+- `mjpeg2rgb` was honest but unstable on this setup
+- `yuyv2rgb` is the current preferred path because it avoids the MJPEG timeout/crash path
 
 Latency / bandwidth suggestions if camera is still too slow:
 

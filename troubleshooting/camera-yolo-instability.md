@@ -10,7 +10,7 @@ working, what is failing, and the most likely causes.
   - `image_width: 320`
   - `image_height: 240`
   - `framerate: 10.0`
-  - `pixel_format: mjpeg2rgb`
+  - `pixel_format: yuyv2rgb`
 - WSL can display the plain camera feed in a local viewer.
 - WSL YOLO package scaffolding exists and builds successfully.
 - WSL YOLO model file exists locally:
@@ -41,7 +41,7 @@ The likely issue is not the YOLO logic itself.
 
 The likely weak point is the camera producer and/or image transport path:
 
-- Pi camera node instability under load
+- Pi camera node instability under the MJPEG decode path
 - WSL image transport instability over DDS/Wi-Fi
 - Pi thermal stress
 - Pi USB/camera stability problems
@@ -146,7 +146,7 @@ This is the better short-term design because it reduces ROS image traffic.
 
 In order of suspicion:
 
-1. Pi camera node instability (`usb_cam`) under current load
+1. Pi camera node instability (`usb_cam`) under the MJPEG decode path
 2. WSL DDS image transport instability for large image topics over Wi-Fi
 3. Pi thermal throttling / overheating
 4. power instability from battery + charging setup
@@ -175,7 +175,21 @@ In order of suspicion:
 
 - reduce to `160x120`
 - reduce to `5 FPS`
-- keep `pixel_format: mjpeg2rgb`
+- keep `pixel_format: yuyv2rgb`
+
+### New camera format direction
+
+The next recommended camera path is:
+
+- `pixel_format: yuyv2rgb`
+
+Reason:
+
+- the camera explicitly advertises `YUYV 4:2:2` at the tested low resolutions
+- this avoids the `mjpeg2rgb` path that repeatedly crashed with:
+  - `Select timeout, exiting...`
+- ROS `image_transport` can still provide compressed topics for offboard
+  consumers without depending on the MJPEG decode path inside `usb_cam`
 
 This is not ideal for quality, but it is a reasonable stability-first step.
 

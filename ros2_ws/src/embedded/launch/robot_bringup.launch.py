@@ -174,16 +174,16 @@ def generate_launch_description():
     )
 
     # ---- 6. USB Camera ----
-    # Publish an honest raw image on /camera/image_raw. raw_mjpeg forwarded
-    # JPEG bytes while labeling them as yuv422, which broke downstream tools.
-    # mjpeg2rgb keeps camera-side MJPEG capture but decodes before publishing
-    # the ROS Image message so consumers can trust the encoding field.
+    # Use the simpler YUYV capture path instead of MJPEG decoding. This avoids
+    # the flaky usb_cam MJPEG timeout/crash path we observed, while existing
+    # image_transport plugins can still provide /camera/image_raw/compressed
+    # for offboard WSL viewing.
     camera_params = {
         'video_device':    '/dev/video0',
         'image_width':     320,
         'image_height':    240,
         'framerate':       10.0,
-        'pixel_format':    'mjpeg2rgb',
+        'pixel_format':    'yuyv2rgb',
         'camera_frame_id': 'camera_optical_link',
     }
     camera_remaps = [
