@@ -5,6 +5,13 @@ Senior Project ECE
 ## Description
 Our team of 5 engineers has taken on the ambitious goal of creating a fully autonomous delivery bot, capable of being dynamically summoned to a node via Wi-Fi / BLE.
 
+## Current Docs
+
+- [Project structure](docs/project-structure.md)
+- [Handoff guide](docs/handoff-guide.md)
+- [Startup scripts](docs/startup-scripts.md)
+- [Firmware protocol](docs/firmware-protocol.md)
+
 ## Startup
 On a Linux Environment, preferably Ubuntu 24.04 as it is compatible with the ROS-Kilted development environment we've used
 
