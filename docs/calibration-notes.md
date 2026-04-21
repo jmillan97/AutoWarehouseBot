@@ -498,3 +498,21 @@
 - Interpretation: `rotation_speed = 40` is too close to motor deadband for trustworthy rotation calibration.
 - Applied next action: set `rotation_speed = 80` and reset `rotation_scale = 1.0` for the next clean isolated +90 deg calibration trial.
 - Keep `rotation_command_interval_s = 0.75` and the explicit `drive_lr:0,0` stop behavior.
+
+## 2026-04-21: Rotation Speed 80 Validation, +90 deg
+
+- Log folder: `calibration_logs/20260421_110621_rotation`
+- Active `rotation_scale`: `1.0`.
+- Active `rotation_speed`: `80`.
+- Active `rotation_command_interval_s`: `0.75`.
+- Commanded rotation: +90 deg.
+- Measured physical rotation: about 135 deg.
+- Operator note: all tires moved fine.
+- Direction was marked correct.
+- Encoder ticks: left 419 -> 99, right 563 -> 925.
+- Tick deltas: left -320, right +362.
+- Odom yaw delta: about -143.5 deg.
+- IMU yaw delta: about +6.8 deg.
+- Interpretation: PWM 80 clears the motor deadband, so this is usable rotation-scale data. Physical rotation overshot by about 50%.
+- Applied next action: set `rotation_scale = 0.6666666666666666`, keeping `rotation_speed = 80`.
+- Next validation: restart Pi bringup and rerun one isolated +90 deg trial.
