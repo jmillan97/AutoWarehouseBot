@@ -443,3 +443,18 @@
   - positive `/rotate_angle_deg` sends `drive_lr:-rotation_speed,+rotation_speed`
   - negative `/rotate_angle_deg` sends `drive_lr:+rotation_speed,-rotation_speed`
 - Next validation: restart Pi bringup and run one isolated +90 deg trial.
+
+## 2026-04-21: Rotation Drive-LR Backlog Fix
+
+- Log folder: `calibration_logs/20260421_024230_rotation`
+- Active `rotation_scale`: `1.0`.
+- Active `rotation_speed`: `60`.
+- Commanded rotation: +90 deg.
+- Operator note: robot rotated about 360 deg plus 45 deg to the right.
+- Bridge log showed `target_ticks=142` and `Motion complete traveled=150`, but Arduino continued acknowledging `drive_lr:-60,60` commands afterward.
+- Interpretation: the bridge was sending rotation `drive_lr` commands every control tick, creating a serial backlog. The stop command could arrive late, allowing large physical overspin. The turn direction is also not yet calibrated.
+- Applied next action:
+  - Added `rotation_command_interval_s = 0.75` so rotation drive commands refresh slowly instead of flooding serial.
+  - Added explicit `drive_lr:0,0` before `x` on motion complete, timeout, and cancel.
+  - Kept `rotation_scale = 1.0` and `rotation_speed = 60` for the next isolated test.
+- Next validation: restart Pi bringup and run one isolated +90 deg trial. If direction is still wrong but overspin is controlled, flip rotation sign next.

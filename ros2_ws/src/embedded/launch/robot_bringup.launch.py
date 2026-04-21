@@ -136,6 +136,7 @@ def generate_launch_description():
             'distance_scale': 1.0158730158730158,
             'rotation_scale': 1.0,
             'rotation_speed': 60,
+            'rotation_command_interval_s': 0.75,
             'use_drive_lr_linear': True,
             'linear_balance_kp': 0.4,
             'linear_steer_bias': -6.0,

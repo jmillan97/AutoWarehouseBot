@@ -36,6 +36,7 @@ class MotionState:
     start_right_ticks: int = 0
     start_time: float = 0.0
     speed_sent: bool = False
+    last_drive_send_time: float = 0.0
 
 
 class SerialBridgePy(Node):
@@ -52,6 +53,7 @@ class SerialBridgePy(Node):
         self.declare_parameter("distance_scale", 1.0158730158730158)
         self.declare_parameter("rotation_scale", 1.0)
         self.declare_parameter("rotation_speed", 60)
+        self.declare_parameter("rotation_command_interval_s", 0.75)
         self.declare_parameter("use_drive_lr_linear", True)
         self.declare_parameter("linear_balance_kp", 0.4)
         self.declare_parameter("linear_steer_bias", -6.0)
@@ -68,6 +70,7 @@ class SerialBridgePy(Node):
         self.distance_scale = float(self.get_parameter("distance_scale").value)
         self.rotation_scale = float(self.get_parameter("rotation_scale").value)
         self.rotation_speed = int(self.get_parameter("rotation_speed").value)
+        self.rotation_command_interval_s = float(self.get_parameter("rotation_command_interval_s").value)
         self.use_drive_lr_linear = bool(self.get_parameter("use_drive_lr_linear").value)
         self.linear_balance_kp = float(self.get_parameter("linear_balance_kp").value)
         self.linear_steer_bias = float(self.get_parameter("linear_steer_bias").value)
@@ -76,6 +79,7 @@ class SerialBridgePy(Node):
 
         self.command_speed = max(0, min(255, self.command_speed))
         self.rotation_speed = max(0, min(255, self.rotation_speed))
+        self.rotation_command_interval_s = max(0.1, self.rotation_command_interval_s)
         effective_cpr = self.encoder_cpr * self.gear_ratio
         self.ticks_to_m = (2.0 * math.pi * self.wheel_radius) / effective_cpr
 
@@ -157,6 +161,10 @@ class SerialBridgePy(Node):
         right_pwm = max(-255, min(255, int(round(right_pwm))))
         self._write_serial(f"drive_lr:{left_pwm},{right_pwm}\n")
 
+    def _stop_motion_outputs(self) -> None:
+        self._send_drive_lr(0, 0)
+        self._send_cmd("x")
+
     def on_move_mm(self, msg: Int32) -> None:
         if msg.data == 0:
             self._cancel_motion("zero move command")
@@ -202,7 +210,7 @@ class SerialBridgePy(Node):
     def _cancel_motion(self, reason: str) -> None:
         with self._lock:
             self._motion = MotionState()
-        self._send_cmd("x")
+        self._stop_motion_outputs()
         self.get_logger().info(f"Motion cancelled: {reason}")
 
     def control_loop(self) -> None:
@@ -216,7 +224,7 @@ class SerialBridgePy(Node):
 
         elapsed = time.monotonic() - m.start_time
         if elapsed > self.command_timeout_s:
-            self._send_cmd("x")
+            self._stop_motion_outputs()
             self.get_logger().warn(f"Motion timeout after {elapsed:.2f}s")
             with self._lock:
                 self._motion = MotionState()
@@ -226,7 +234,7 @@ class SerialBridgePy(Node):
         dright = abs(right - m.start_right_ticks)
         traveled = (dleft + dright) // 2
         if traveled >= m.target_ticks:
-            self._send_cmd("x")
+            self._stop_motion_outputs()
             self.get_logger().info(f"Motion complete traveled={traveled} target={m.target_ticks}")
             with self._lock:
                 self._motion = MotionState()
@@ -247,9 +255,13 @@ class SerialBridgePy(Node):
             else:
                 self._send_cmd("w" if m.direction > 0 else "s")
         else:
-            left_pwm = -self.rotation_speed * m.direction
-            right_pwm = self.rotation_speed * m.direction
-            self._send_drive_lr(left_pwm, right_pwm)
+            now = time.monotonic()
+            if m.last_drive_send_time == 0.0 or now - m.last_drive_send_time >= self.rotation_command_interval_s:
+                left_pwm = -self.rotation_speed * m.direction
+                right_pwm = self.rotation_speed * m.direction
+                self._send_drive_lr(left_pwm, right_pwm)
+                with self._lock:
+                    self._motion.last_drive_send_time = now
 
     def _read_loop(self) -> None:
         buf = ""
