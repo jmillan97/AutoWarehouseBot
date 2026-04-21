@@ -143,6 +143,8 @@ def generate_launch_description():
             'rotation_scale': 1.35,
             'rotation_scale_positive': 1.35,
             'rotation_scale_negative': 0.90,
+            'rotation_scale_negative_large': 1.35,
+            'rotation_large_angle_threshold_deg': 45.0,
             'rotation_speed': 80,
             'rotation_command_interval_s': 0.75,
             'use_drive_lr_linear': True,

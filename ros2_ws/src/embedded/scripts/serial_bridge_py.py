@@ -55,6 +55,8 @@ class SerialBridgePy(Node):
         self.declare_parameter("rotation_scale", 1.35)
         self.declare_parameter("rotation_scale_positive", 1.35)
         self.declare_parameter("rotation_scale_negative", 0.90)
+        self.declare_parameter("rotation_scale_negative_large", 1.35)
+        self.declare_parameter("rotation_large_angle_threshold_deg", 45.0)
         self.declare_parameter("rotation_speed", 80)
         self.declare_parameter("rotation_command_interval_s", 0.75)
         self.declare_parameter("use_drive_lr_linear", True)
@@ -77,6 +79,8 @@ class SerialBridgePy(Node):
         self.rotation_scale = float(self.get_parameter("rotation_scale").value)
         self.rotation_scale_positive = float(self.get_parameter("rotation_scale_positive").value)
         self.rotation_scale_negative = float(self.get_parameter("rotation_scale_negative").value)
+        self.rotation_scale_negative_large = float(self.get_parameter("rotation_scale_negative_large").value)
+        self.rotation_large_angle_threshold_deg = float(self.get_parameter("rotation_large_angle_threshold_deg").value)
         self.rotation_speed = int(self.get_parameter("rotation_speed").value)
         self.rotation_command_interval_s = float(self.get_parameter("rotation_command_interval_s").value)
         self.use_drive_lr_linear = bool(self.get_parameter("use_drive_lr_linear").value)
@@ -205,7 +209,12 @@ class SerialBridgePy(Node):
             meters = (abs_value * self.distance_scale) / 1000.0
             target_ticks = int(round(meters / self.ticks_to_m))
         else:
-            scale = self.rotation_scale_positive if direction > 0 else self.rotation_scale_negative
+            if direction > 0:
+                scale = self.rotation_scale_positive
+            elif abs_value > self.rotation_large_angle_threshold_deg:
+                scale = self.rotation_scale_negative_large
+            else:
+                scale = self.rotation_scale_negative
             theta = math.radians(abs_value * scale)
             wheel_arc = (self.wheel_sep / 2.0) * theta
             target_ticks = int(round(wheel_arc / self.ticks_to_m))

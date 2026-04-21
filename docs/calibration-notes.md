@@ -748,3 +748,19 @@
 - Interpretation: negative 30 deg is calibrated well at scale 0.90, but negative 90 deg under-rotates. This is not a clean global-scale problem; it looks nonlinear with turn size, traction, or load distribution.
 - Applied next action: hold code constants for one more test and collect a midpoint negative turn before changing scale again.
 - Next validation: run isolated -60 deg. If -60 also under-rotates relative to -30, consider either prioritizing 90-degree navigation turns with a larger negative scale or adding angle-dependent compensation.
+
+## 2026-04-21: Negative Midpoint Rotation Validation
+
+- Log folder: `calibration_logs/20260421_120934_rotation`
+- Active `rotation_scale_negative`: `0.90`.
+- Commanded rotation: -60 deg.
+- Measured physical rotation: about 45 deg.
+- Encoder ticks: left -2771 -> -2679, right 4152 -> 4052.
+- Tick deltas: left +92, right -100.
+- Operator note: only 45 deg, no skid.
+- Interpretation: negative turns are angle-dependent. Scale 0.90 is good for -30 deg, but both -60 and -90 deg land around 45 deg, so a single negative scale is not enough.
+- Applied next action:
+  - Keep `rotation_scale_negative = 0.90` for small negative turns.
+  - Add `rotation_scale_negative_large = 1.35` for negative turns larger than 45 deg.
+  - Add `rotation_large_angle_threshold_deg = 45.0`.
+- Next validation: restart bringup and run isolated -60 deg first. If it lands near 60 without overshoot/spinout, run -90 deg.
