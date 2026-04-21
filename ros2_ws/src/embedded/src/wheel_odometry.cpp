@@ -15,7 +15,7 @@
  *   wheel_radius      (double)  default: 0.04   meters
  *   wheel_separation  (double)  default: 0.21   meters
  *   encoder_cpr       (double)  default: 2.0    counts per rev on motor shaft
- *   gear_ratio        (double)  default: 30.0   [TUNE] measure on real hardware
+ *   gear_ratio        (double)  default: 108.0  calibrated on real hardware
  */
 
 #include <rclcpp/rclcpp.hpp>
@@ -36,7 +36,7 @@ public:
     this->declare_parameter<double>("wheel_radius",     0.04);
     this->declare_parameter<double>("wheel_separation", 0.21);
     this->declare_parameter<double>("encoder_cpr",      2.0);
-    this->declare_parameter<double>("gear_ratio",       30.0);
+    this->declare_parameter<double>("gear_ratio",       108.0);
 
     // ---- Read parameters ----
     wheel_radius_     = this->get_parameter("wheel_radius").as_double();

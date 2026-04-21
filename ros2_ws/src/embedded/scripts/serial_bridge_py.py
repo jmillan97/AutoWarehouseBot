@@ -48,7 +48,7 @@ class SerialBridgePy(Node):
         self.declare_parameter("wheel_radius", 0.04)
         self.declare_parameter("wheel_separation", 0.21)
         self.declare_parameter("encoder_cpr", 2.0)
-        self.declare_parameter("gear_ratio", 30.0)
+        self.declare_parameter("gear_ratio", 108.0)
         self.declare_parameter("command_timeout_s", 15.0)
         self.declare_parameter("command_rate_hz", 10.0)
 

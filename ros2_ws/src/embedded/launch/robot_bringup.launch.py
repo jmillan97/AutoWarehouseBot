@@ -131,6 +131,8 @@ def generate_launch_description():
             'serial_port': serial_port,
             'serial_baud': serial_baud,
             'command_speed': 90,
+            'encoder_cpr': 2.0,
+            'gear_ratio': 108.0,
             'use_sim_time': use_sim_time,
         }]
     )
@@ -145,7 +147,7 @@ def generate_launch_description():
             'wheel_radius':     0.04,
             'wheel_separation': 0.21,
             'encoder_cpr':      2.0,
-            'gear_ratio':       30.0,   # [TUNE] measure on real hardware
+            'gear_ratio':       108.0,  # Calibrated from distance trials at command_speed=90.
             'use_sim_time':     use_sim_time,
         }]
     )

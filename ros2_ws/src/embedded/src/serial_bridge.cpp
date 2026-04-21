@@ -48,7 +48,7 @@ public:
     this->declare_parameter<double>("wheel_radius", 0.04);
     this->declare_parameter<double>("wheel_separation", 0.21);
     this->declare_parameter<double>("encoder_cpr", 2.0);
-    this->declare_parameter<double>("gear_ratio", 30.0);
+    this->declare_parameter<double>("gear_ratio", 108.0);
     this->declare_parameter<double>("command_timeout_s", 15.0);
     this->declare_parameter<double>("command_rate_hz", 10.0);
 
@@ -378,7 +378,7 @@ private:
   double wheel_radius_{0.04};
   double wheel_sep_{0.21};
   double encoder_cpr_{2.0};
-  double gear_ratio_{30.0};
+  double gear_ratio_{108.0};
   double ticks_to_meters_{0.0};
   double command_timeout_s_{15.0};
   double command_rate_hz_{10.0};
