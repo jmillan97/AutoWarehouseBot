@@ -725,3 +725,26 @@
   - Added `rotation_scale_negative = 0.90`, based on `1.35 * 30 / 45`.
   - Left legacy `rotation_scale = 1.35` in place for compatibility, but rotation control now chooses the direction-specific scale.
 - Next validation: restart bringup and run isolated -30 deg first. If clean, run -90 deg.
+
+## 2026-04-21: Rotation Scale Negative 0.90 Validation
+
+- Log folders:
+  - `calibration_logs/20260421_120551_rotation`
+  - `calibration_logs/20260421_120659_rotation`
+- Bringup was running with `enable_camera:=false`.
+- Active `rotation_scale_positive`: `1.35`.
+- Active `rotation_scale_negative`: `0.90`.
+- Active `rotation_speed`: `80`.
+- -30 deg test:
+  - Measured physical rotation: about 30 deg.
+  - Encoder ticks: left -2959 -> -2902, right 4354 -> 4294.
+  - Tick deltas: left +57, right -60.
+  - Operator note: pretty close to 30, no skid.
+- -90 deg test:
+  - Measured physical rotation: about 45 deg.
+  - Encoder ticks: left -2902 -> -2771, right 4294 -> 4152.
+  - Tick deltas: left +131, right -142.
+  - Operator note: only went 45; possible weight distribution or side power difference.
+- Interpretation: negative 30 deg is calibrated well at scale 0.90, but negative 90 deg under-rotates. This is not a clean global-scale problem; it looks nonlinear with turn size, traction, or load distribution.
+- Applied next action: hold code constants for one more test and collect a midpoint negative turn before changing scale again.
+- Next validation: run isolated -60 deg. If -60 also under-rotates relative to -30, consider either prioritizing 90-degree navigation turns with a larger negative scale or adding angle-dependent compensation.
