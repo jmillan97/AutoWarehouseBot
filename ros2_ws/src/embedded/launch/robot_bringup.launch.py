@@ -148,6 +148,7 @@ def generate_launch_description():
             'linear_steer_bias': -6.0,
             'serial_settle_s': 2.0,
             'encoder_stale_timeout_s': 1.0,
+            'rotation_imbalance_stop_ratio': 3.0,
             'use_sim_time': use_sim_time,
         }]
     )

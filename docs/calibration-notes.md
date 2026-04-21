@@ -636,3 +636,20 @@
   - Active motions are stopped if encoder data goes stale mid-command.
 - Rotation scale remains `0.895`; this change is meant to harden timing/state validity before the next calibration decision.
 - Next validation: restart bringup, wait until `/left_ticks` and `/right_ticks` are visibly publishing, then run one isolated +90 deg trial.
+
+## 2026-04-21: Spinout After Encoder Freshness Guard
+
+- Log folder: `calibration_logs/20260421_114552_rotation`
+- Bringup was running with `enable_camera:=false`.
+- Active `rotation_scale`: `0.895`.
+- Commanded rotation: +90 deg.
+- Operator note: robot spun through multiple circles.
+- Recorded measured angle: 0 deg because the final orientation was not useful as a calibration point.
+- Encoder ticks: left -1205 -> -1217, right 2408 -> 2910.
+- Tick deltas: left -12, right +502.
+- Interpretation: the freshness guard only proves encoder frames are arriving; it does not protect against one wheel/encoder side barely changing while the other side races ahead. The average-travel completion rule can therefore allow a spinout or late stop when one side is stalled or misreported.
+- Applied next action:
+  - For rotation only, completion now uses the larger wheel travel instead of the average of both wheels.
+  - Added `rotation_imbalance_stop_ratio = 3.0`; if one side is racing more than 3x the other after meaningful motion has started, stop and warn.
+- Rotation scale remains `0.895`.
+- Next validation: restart bringup and run one isolated +90 deg trial with the camera still off. Watch for `Rotation stopped for side imbalance`.

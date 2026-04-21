@@ -62,6 +62,7 @@ class SerialBridgePy(Node):
         self.declare_parameter("command_rate_hz", 10.0)
         self.declare_parameter("serial_settle_s", 2.0)
         self.declare_parameter("encoder_stale_timeout_s", 1.0)
+        self.declare_parameter("rotation_imbalance_stop_ratio", 3.0)
 
         self.serial_port = str(self.get_parameter("serial_port").value)
         self.serial_baud = int(self.get_parameter("serial_baud").value)
@@ -81,6 +82,7 @@ class SerialBridgePy(Node):
         self.command_rate_hz = float(self.get_parameter("command_rate_hz").value)
         self.serial_settle_s = float(self.get_parameter("serial_settle_s").value)
         self.encoder_stale_timeout_s = float(self.get_parameter("encoder_stale_timeout_s").value)
+        self.rotation_imbalance_stop_ratio = float(self.get_parameter("rotation_imbalance_stop_ratio").value)
 
         self.command_speed = max(0, min(255, self.command_speed))
         self.rotation_speed = max(0, min(255, self.rotation_speed))
@@ -267,10 +269,30 @@ class SerialBridgePy(Node):
 
         dleft = abs(left - m.start_left_ticks)
         dright = abs(right - m.start_right_ticks)
-        traveled = (dleft + dright) // 2
+        traveled = max(dleft, dright) if m.mode == "rotate" else (dleft + dright) // 2
+
+        if m.mode == "rotate":
+            min_side = min(dleft, dright)
+            max_side = max(dleft, dright)
+            if (
+                max_side >= max(5, int(0.5 * m.target_ticks))
+                and min_side > 0
+                and max_side / min_side >= self.rotation_imbalance_stop_ratio
+            ):
+                self._stop_motion_outputs()
+                self.get_logger().warn(
+                    "Rotation stopped for side imbalance "
+                    f"left={dleft} right={dright} target={m.target_ticks}"
+                )
+                with self._lock:
+                    self._motion = MotionState()
+                return
+
         if traveled >= m.target_ticks:
             self._stop_motion_outputs()
-            self.get_logger().info(f"Motion complete traveled={traveled} target={m.target_ticks}")
+            self.get_logger().info(
+                f"Motion complete traveled={traveled} target={m.target_ticks} left={dleft} right={dright}"
+            )
             with self._lock:
                 self._motion = MotionState()
             return
