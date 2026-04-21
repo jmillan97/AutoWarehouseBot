@@ -50,6 +50,10 @@ def generate_launch_description():
     serial_baud  = LaunchConfiguration('serial_baud')
     use_sim_time = LaunchConfiguration('use_sim_time')
     enable_lidar = LaunchConfiguration('enable_lidar')
+    camera_width = LaunchConfiguration('camera_width')
+    camera_height = LaunchConfiguration('camera_height')
+    camera_framerate = LaunchConfiguration('camera_framerate')
+    camera_pixel_format = LaunchConfiguration('camera_pixel_format')
 
     args = [
         DeclareLaunchArgument('serial_port',  default_value='/dev/arduino'),
@@ -57,9 +61,13 @@ def generate_launch_description():
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument(
             'enable_lidar',
-            default_value='false',
-            description='Set true when the RPLidar is physically connected on /dev/lidar.',
+            default_value='true',
+            description='Set false to disable RPLidar when /dev/lidar is disconnected or unstable.',
         ),
+        DeclareLaunchArgument('camera_width', default_value='320'),
+        DeclareLaunchArgument('camera_height', default_value='240'),
+        DeclareLaunchArgument('camera_framerate', default_value='20.0'),
+        DeclareLaunchArgument('camera_pixel_format', default_value='yuyv2rgb'),
     ]
 
     # ---- Robot description (URDF) ----
@@ -172,10 +180,10 @@ def generate_launch_description():
     # for offboard WSL viewing.
     camera_params = {
         'video_device':    '/dev/video0',
-        'image_width':     320,
-        'image_height':    240,
-        'framerate':       10.0,
-        'pixel_format':    'yuyv2rgb',
+        'image_width':     camera_width,
+        'image_height':    camera_height,
+        'framerate':       camera_framerate,
+        'pixel_format':    camera_pixel_format,
         'camera_frame_id': 'camera_optical_link',
     }
     camera_remaps = [

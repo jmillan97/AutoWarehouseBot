@@ -11,6 +11,8 @@ Our team of 5 engineers has taken on the ambitious goal of creating a fully auto
 - [Handoff guide](docs/handoff-guide.md)
 - [Startup scripts](docs/startup-scripts.md)
 - [Firmware protocol](docs/firmware-protocol.md)
+- [Codex MCP workflow](docs/codex-mcp-workflow.md)
+- [Camera and LiDAR validation](docs/camera-lidar-validation.md)
 
 ## Startup
 On a Linux Environment, preferably Ubuntu 24.04 as it is compatible with the ROS-Kilted development environment we've used

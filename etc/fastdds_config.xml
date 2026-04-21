@@ -17,12 +17,12 @@
                     <initialPeersList>
                         <locator>
                             <udpv4>
-                                <address>104.194.115.245</address> <!-- Laptop IP -->
+                                <address>104.194.115.152</address> <!-- Laptop IP -->
                             </udpv4>
                         </locator>
                         <locator>
                             <udpv4>
-                                <address>104.194.126.139</address> <!-- Raspberry Pi IP -->
+                                <address>104.194.124.29</address> <!-- Raspberry Pi IP -->
                             </udpv4>
                         </locator>
                     </initialPeersList>

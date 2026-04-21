@@ -21,6 +21,8 @@
   <exec_depend>python3</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>rplidar_ros</exec_depend>
+  <exec_depend>usb_cam</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

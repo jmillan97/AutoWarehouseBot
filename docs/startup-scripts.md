@@ -90,7 +90,7 @@ You can override these if needed:
 
 ```bash
 export PI_USER=ece_441
-export PI_HOST=104.194.126.139
+export PI_HOST=104.194.124.29
 export PI_WORKSPACE=/home/ece_441/AutoWarehouseBot/ros2_ws
 export LOCAL_WORKSPACE=/home/felix/warehouse_project/ros2_ws
 export USE_RVIZ_VALUE=false

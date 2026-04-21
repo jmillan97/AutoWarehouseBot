@@ -5,6 +5,8 @@ import re
 import threading
 import time
 import tkinter as tk
+from collections import deque
+from math import cos, isfinite, sin
 from tkinter import ttk
 
 import cv2
@@ -13,16 +15,19 @@ import rclpy
 from PIL import Image, ImageTk
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
-from sensor_msgs.msg import CompressedImage
+from sensor_msgs.msg import CompressedImage, LaserScan
 from std_msgs.msg import Int32
 
 
 CAMERA_TOPIC = os.environ.get('OPERATOR_CAMERA_TOPIC', '/camera/image_raw/compressed')
+SCAN_TOPIC = os.environ.get('OPERATOR_SCAN_TOPIC', '/scan')
 MODEL_PATH = os.environ.get('OPERATOR_YOLO_MODEL', os.path.expanduser('~/warehouse_project/yolov8n.pt'))
 USE_YOLO = os.environ.get('OPERATOR_USE_YOLO', '1').strip().lower() not in ('0', 'false', 'no')
 CONFIDENCE_THRESHOLD = float(os.environ.get('OPERATOR_YOLO_CONF', '0.4'))
 APP_TITLE = 'Warehouse Bot Operator Console'
 VIDEO_SIZE = (640, 480)
+SCAN_CANVAS_SIZE = 360
+SCAN_RATE_WINDOW = 30
 LOG_MAX_LINES = 200
 
 
@@ -35,6 +40,16 @@ class OperatorConsoleNode(Node):
         self.latest_frame_source = 'waiting'
         self.model = None
         self.class_names = {}
+        self.scan_lock = threading.Lock()
+        self.latest_scan_points = []
+        self.latest_scan_stats = {
+            'source': 'waiting',
+            'point_count': 0,
+            'min_range': None,
+            'rate_hz': 0.0,
+            'range_max': 0.0,
+        }
+        self.scan_arrival_times = deque(maxlen=SCAN_RATE_WINDOW)
 
         self.move_pub = self.create_publisher(Int32, '/move_distance_mm', 10)
         self.rotate_pub = self.create_publisher(Int32, '/rotate_angle_deg', 10)
@@ -48,7 +63,14 @@ class OperatorConsoleNode(Node):
             self._on_compressed_frame,
             qos_profile_sensor_data,
         )
+        self.create_subscription(
+            LaserScan,
+            SCAN_TOPIC,
+            self._on_scan,
+            qos_profile_sensor_data,
+        )
         self.ui_queue.put(('log', f'Subscribed to {CAMERA_TOPIC}'))
+        self.ui_queue.put(('log', f'Subscribed to {SCAN_TOPIC}'))
         if self.model is not None:
             self.ui_queue.put(('log', f'YOLO overlay enabled: {MODEL_PATH}'))
         else:
@@ -94,6 +116,37 @@ class OperatorConsoleNode(Node):
             self.latest_frame = annotated
             self.latest_frame_source = source
 
+    def _on_scan(self, msg: LaserScan) -> None:
+        now = time.time()
+        self.scan_arrival_times.append(now)
+        if len(self.scan_arrival_times) >= 2:
+            elapsed = self.scan_arrival_times[-1] - self.scan_arrival_times[0]
+            rate_hz = (len(self.scan_arrival_times) - 1) / elapsed if elapsed > 0 else 0.0
+        else:
+            rate_hz = 0.0
+
+        points = []
+        min_range = None
+        angle = msg.angle_min
+        range_min = max(0.0, float(msg.range_min))
+        range_max = float(msg.range_max)
+        for distance in msg.ranges:
+            if isfinite(distance) and range_min <= distance <= range_max:
+                points.append((distance * cos(angle), distance * sin(angle)))
+                if min_range is None or distance < min_range:
+                    min_range = float(distance)
+            angle += msg.angle_increment
+
+        with self.scan_lock:
+            self.latest_scan_points = points
+            self.latest_scan_stats = {
+                'source': SCAN_TOPIC,
+                'point_count': len(points),
+                'min_range': min_range,
+                'rate_hz': rate_hz,
+                'range_max': range_max,
+            }
+
     def _results_to_detections(self, results):
         detections = []
         for result in results:
@@ -135,6 +188,10 @@ class OperatorConsoleNode(Node):
                 return self.latest_frame.copy(), self.latest_frame_source
         return None, 'waiting'
 
+    def get_scan_snapshot(self):
+        with self.scan_lock:
+            return list(self.latest_scan_points), dict(self.latest_scan_stats)
+
     def publish_move_mm(self, value: int) -> None:
         self.move_pub.publish(Int32(data=int(value)))
         direction = 'forward' if value >= 0 else 'backward'
@@ -150,6 +207,17 @@ def bgr_to_tk_image(frame, size):
     resized = cv2.resize(frame, size, interpolation=cv2.INTER_AREA)
     rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
     return ImageTk.PhotoImage(Image.fromarray(rgb))
+
+
+def format_scan_status(stats) -> str:
+    if stats.get('point_count', 0) == 0:
+        return 'LiDAR: waiting'
+    min_range = stats.get('min_range')
+    min_text = f'{min_range:.2f} m' if min_range is not None else 'n/a'
+    return (
+        f"LiDAR: {stats.get('rate_hz', 0.0):.1f} Hz avg | "
+        f"{stats.get('point_count', 0)} points | nearest {min_text}"
+    )
 
 
 def parse_distance_to_mm(value: float, unit: str) -> int:
@@ -233,7 +301,7 @@ class OperatorConsoleApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title(APP_TITLE)
-        self.root.geometry('900x820')
+        self.root.geometry('1120x820')
 
         self.ui_queue = queue.Queue()
         self.node = OperatorConsoleNode(self.ui_queue)
@@ -244,11 +312,13 @@ class OperatorConsoleApp:
         self.video_image = None
         self.log_lines = []
         self.video_status_var = tk.StringVar(value='Video source: waiting')
+        self.scan_status_var = tk.StringVar(value='LiDAR: waiting')
 
         self._build_ui()
         self._append_log('Operator console ready. Type "help" for command syntax.')
         self.root.after(50, self._drain_ui_queue)
         self.root.after(80, self._refresh_video)
+        self.root.after(100, self._refresh_scan)
         self.root.protocol('WM_DELETE_WINDOW', self._on_close)
 
     def _build_ui(self) -> None:
@@ -256,14 +326,37 @@ class OperatorConsoleApp:
         self.root.rowconfigure(0, weight=3)
         self.root.rowconfigure(1, weight=2)
 
-        video_frame = ttk.LabelFrame(self.root, text='Live Camera')
-        video_frame.grid(row=0, column=0, sticky='nsew', padx=10, pady=(10, 6))
+        sensor_frame = ttk.Frame(self.root)
+        sensor_frame.grid(row=0, column=0, sticky='nsew', padx=10, pady=(10, 6))
+        sensor_frame.columnconfigure(0, weight=3)
+        sensor_frame.columnconfigure(1, weight=2)
+        sensor_frame.rowconfigure(0, weight=1)
+
+        video_frame = ttk.LabelFrame(sensor_frame, text='Live Camera')
+        video_frame.grid(row=0, column=0, sticky='nsew', padx=(0, 6), pady=0)
         video_frame.columnconfigure(0, weight=1)
         video_frame.rowconfigure(0, weight=1)
 
         self.video_label = ttk.Label(video_frame, text='Waiting for camera frames...')
         self.video_label.grid(row=0, column=0, sticky='nsew', padx=8, pady=8)
         ttk.Label(video_frame, textvariable=self.video_status_var).grid(
+            row=1, column=0, sticky='w', padx=8, pady=(0, 8)
+        )
+
+        scan_frame = ttk.LabelFrame(sensor_frame, text='LiDAR Scan')
+        scan_frame.grid(row=0, column=1, sticky='nsew', padx=(6, 0), pady=0)
+        scan_frame.columnconfigure(0, weight=1)
+        scan_frame.rowconfigure(0, weight=1)
+
+        self.scan_canvas = tk.Canvas(
+            scan_frame,
+            width=SCAN_CANVAS_SIZE,
+            height=SCAN_CANVAS_SIZE,
+            background='#111318',
+            highlightthickness=0,
+        )
+        self.scan_canvas.grid(row=0, column=0, sticky='nsew', padx=8, pady=8)
+        ttk.Label(scan_frame, textvariable=self.scan_status_var).grid(
             row=1, column=0, sticky='w', padx=8, pady=(0, 8)
         )
 
@@ -375,6 +468,42 @@ class OperatorConsoleApp:
             self.video_label.configure(text='Waiting for camera frames...', image='')
             self.video_status_var.set('Video source: waiting')
         self.root.after(80, self._refresh_video)
+
+    def _refresh_scan(self) -> None:
+        points, stats = self.node.get_scan_snapshot()
+        self._draw_scan(points, stats)
+        self.scan_status_var.set(format_scan_status(stats))
+        self.root.after(100, self._refresh_scan)
+
+    def _draw_scan(self, points, stats) -> None:
+        canvas = self.scan_canvas
+        canvas.delete('all')
+        width = max(canvas.winfo_width(), SCAN_CANVAS_SIZE)
+        height = max(canvas.winfo_height(), SCAN_CANVAS_SIZE)
+        cx = width / 2.0
+        cy = height / 2.0
+        radius = min(width, height) * 0.44
+        range_max = min(max(float(stats.get('range_max') or 4.0), 1.0), 8.0)
+        scale = radius / range_max
+
+        for meters in (0.5, 1.0, 2.0, 3.0):
+            if meters > range_max:
+                continue
+            r = meters * scale
+            canvas.create_oval(cx - r, cy - r, cx + r, cy + r, outline='#2b3440')
+            canvas.create_text(cx + 4, cy - r, text=f'{meters:g}m', fill='#7d8792', anchor='w')
+
+        canvas.create_line(cx, cy - radius, cx, cy + radius, fill='#26303b')
+        canvas.create_line(cx - radius, cy, cx + radius, cy, fill='#26303b')
+        canvas.create_oval(cx - 5, cy - 5, cx + 5, cy + 5, fill='#e8eef7', outline='')
+        canvas.create_text(cx, cy + 18, text='robot', fill='#c7d0dc')
+
+        for x_m, y_m in points:
+            px = cx + y_m * scale
+            py = cy - x_m * scale
+            dist = (x_m * x_m + y_m * y_m) ** 0.5
+            color = '#ff5757' if dist < 0.5 else '#ffb347' if dist < 1.0 else '#5fd38d'
+            canvas.create_oval(px - 2, py - 2, px + 2, py + 2, fill=color, outline='')
 
     def _on_close(self) -> None:
         try:

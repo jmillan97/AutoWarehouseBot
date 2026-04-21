@@ -8,7 +8,7 @@ from pynput import keyboard
 # Configuration
 # ---------------------------------------------------------
 PORT = 5006
-DEFAULT_PI_HOST = '104.194.126.139'
+DEFAULT_PI_HOST = '104.194.124.29'
 
 
 def resolve_pi_host():

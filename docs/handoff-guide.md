@@ -20,22 +20,27 @@ ros2-wireless
 
 ## SSH Into The Pi
 
+Codex users should prefer the MCP workflow in
+[`docs/codex-mcp-workflow.md`](codex-mcp-workflow.md). The current Windows SSH
+aliases are `warehouse-pi` for local Wi-Fi and `warehouse-pi-tail` for
+Tailscale fallback.
+
 From Windows PowerShell:
 
 ```powershell
-ssh ece_441@104.194.126.139
+ssh warehouse-pi
 ```
 
 From WSL:
 
 ```bash
-ssh ece_441@104.194.126.139
+ssh ece_441@104.194.124.29
 ```
 
 If the Pi IP changes, update commands/scripts that use:
 
 ```bash
-104.194.126.139
+104.194.124.29
 ```
 
 ## Pi ROS Setup Syntax
@@ -55,11 +60,16 @@ Start Pi hardware bringup:
 ros2 launch embedded robot_bringup.launch.py
 ```
 
-LiDAR is disabled by default. Re-enable it only when `/dev/lidar` is connected:
+LiDAR is enabled by default. Disable it for camera-only testing or if
+`/dev/lidar` is disconnected:
 
 ```bash
-ros2 launch embedded robot_bringup.launch.py enable_lidar:=true
+ros2 launch embedded robot_bringup.launch.py enable_lidar:=false
 ```
+
+Current bringup defaults enable LiDAR and run the camera at 320x240 YUYV,
+20 fps. See [`docs/camera-lidar-validation.md`](camera-lidar-validation.md) for
+the camera FPS ladder, `/scan` checks, and WSL topic crossing workflow.
 
 ## WSL ROS Setup Syntax
 
@@ -266,4 +276,3 @@ If camera gets stuck:
 - Windows PowerShell profile currently prints noisy errors; these do not affect
   ROS commands.
 - `yolov8n.pt` is intentionally not committed.
-

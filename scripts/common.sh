@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 
 PI_USER="${PI_USER:-ece_441}"
-PI_HOST="${PI_HOST:-104.194.126.139}"
+PI_HOST="${PI_HOST:-104.194.124.29}"
 PI_WORKSPACE="${PI_WORKSPACE:-/home/${PI_USER}/AutoWarehouseBot/ros2_ws}"
 PI_FASTDDS="${PI_FASTDDS:-/etc/fastdds_config.xml}"
 

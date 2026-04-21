@@ -25,20 +25,20 @@ python robot_server_pi.py
 ### 2. Start the Dashboard (on your Laptop)
 Open a terminal in THIS folder and run:
 ```bash
-python keyboard_ctrl_pc.py 104.194.126.139
+python keyboard_ctrl_pc.py 104.194.124.29
 ```
 
 You can also set the Pi address once and reuse it:
 
 ```bash
-export PI_HOST=104.194.126.139
+export PI_HOST=104.194.124.29
 python keyboard_ctrl_pc.py
 ```
 
 If you run from Windows PowerShell:
 
 ```powershell
-$env:PI_HOST="104.194.126.139"
+$env:PI_HOST="104.194.124.29"
 python \\wsl.localhost\Ubuntu-24.04\home\felix\warehouse_project\test\keyboard_ctrl_pc.py
 ```
 
