@@ -146,6 +146,8 @@ def generate_launch_description():
             'use_drive_lr_linear': True,
             'linear_balance_kp': 0.4,
             'linear_steer_bias': -6.0,
+            'serial_settle_s': 2.0,
+            'encoder_stale_timeout_s': 1.0,
             'use_sim_time': use_sim_time,
         }]
     )

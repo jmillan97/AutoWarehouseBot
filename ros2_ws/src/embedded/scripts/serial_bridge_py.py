@@ -60,6 +60,8 @@ class SerialBridgePy(Node):
         self.declare_parameter("linear_steer_bias", -6.0)
         self.declare_parameter("command_timeout_s", 15.0)
         self.declare_parameter("command_rate_hz", 10.0)
+        self.declare_parameter("serial_settle_s", 2.0)
+        self.declare_parameter("encoder_stale_timeout_s", 1.0)
 
         self.serial_port = str(self.get_parameter("serial_port").value)
         self.serial_baud = int(self.get_parameter("serial_baud").value)
@@ -77,6 +79,8 @@ class SerialBridgePy(Node):
         self.linear_steer_bias = float(self.get_parameter("linear_steer_bias").value)
         self.command_timeout_s = float(self.get_parameter("command_timeout_s").value)
         self.command_rate_hz = float(self.get_parameter("command_rate_hz").value)
+        self.serial_settle_s = float(self.get_parameter("serial_settle_s").value)
+        self.encoder_stale_timeout_s = float(self.get_parameter("encoder_stale_timeout_s").value)
 
         self.command_speed = max(0, min(255, self.command_speed))
         self.rotation_speed = max(0, min(255, self.rotation_speed))
@@ -97,7 +101,16 @@ class SerialBridgePy(Node):
         self._running = True
         self._current_left = 0
         self._current_right = 0
+        self._last_encoder_time = 0.0
         self._motion = MotionState()
+
+        if self.serial_settle_s > 0.0:
+            self.get_logger().info(f"Settling serial input for {self.serial_settle_s:.1f}s")
+            time.sleep(self.serial_settle_s)
+            try:
+                termios.tcflush(self._fd, termios.TCIOFLUSH)
+            except OSError as exc:
+                self.get_logger().warn(f"Serial flush after settle failed: {exc}")
 
         self._reader_thread = threading.Thread(target=self._read_loop, daemon=True)
         self._reader_thread.start()
@@ -192,7 +205,18 @@ class SerialBridgePy(Node):
 
         target_ticks = max(1, target_ticks)
 
+        now = time.monotonic()
         with self._lock:
+            encoder_age = now - self._last_encoder_time if self._last_encoder_time else math.inf
+            if encoder_age > self.encoder_stale_timeout_s:
+                self._motion = MotionState()
+                self._stop_motion_outputs()
+                self.get_logger().warn(
+                    "Rejecting motion start mode=%s value=%s because encoder data is stale age=%.2fs"
+                    % (mode, signed_value, encoder_age)
+                )
+                return
+
             self._motion = MotionState(
                 active=True,
                 mode=mode,
@@ -200,7 +224,7 @@ class SerialBridgePy(Node):
                 target_ticks=target_ticks,
                 start_left_ticks=self._current_left,
                 start_right_ticks=self._current_right,
-                start_time=time.monotonic(),
+                start_time=now,
                 speed_sent=False,
             )
 
@@ -219,11 +243,21 @@ class SerialBridgePy(Node):
             m = self._motion
             left = self._current_left
             right = self._current_right
+            last_encoder_time = self._last_encoder_time
 
         if not m.active:
             return
 
-        elapsed = time.monotonic() - m.start_time
+        now = time.monotonic()
+        encoder_age = now - last_encoder_time if last_encoder_time else math.inf
+        if encoder_age > self.encoder_stale_timeout_s:
+            self._stop_motion_outputs()
+            self.get_logger().warn(f"Motion stopped because encoder data is stale age={encoder_age:.2f}s")
+            with self._lock:
+                self._motion = MotionState()
+            return
+
+        elapsed = now - m.start_time
         if elapsed > self.command_timeout_s:
             self._stop_motion_outputs()
             self.get_logger().warn(f"Motion timeout after {elapsed:.2f}s")
@@ -256,7 +290,6 @@ class SerialBridgePy(Node):
             else:
                 self._send_cmd("w" if m.direction > 0 else "s")
         else:
-            now = time.monotonic()
             if m.last_drive_send_time == 0.0 or now - m.last_drive_send_time >= self.rotation_command_interval_s:
                 left_pwm = -self.rotation_speed * m.direction
                 right_pwm = self.rotation_speed * m.direction
@@ -320,6 +353,7 @@ class SerialBridgePy(Node):
         with self._lock:
             self._current_left = left
             self._current_right = right
+            self._last_encoder_time = time.monotonic()
 
         msg_l = Int32()
         msg_l.data = left

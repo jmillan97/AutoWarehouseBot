@@ -624,3 +624,15 @@
 - Interpretation: the parser recovery works, but rotation is still not repeatable. The recovered encoder warning and `usb_cam` timeout appearing together suggest USB/power/load interference may be delaying or corrupting serial updates during motion.
 - Applied next action: add an `enable_camera` launch argument and hold `rotation_scale = 0.895`; do the next isolated rotation test with the camera node disabled so serial/encoder timing can be measured without USB camera failures in the same run.
 - Next validation: launch bringup with `enable_camera:=false`, rerun one isolated +90 deg trial at the same scale, then compare physical angle and tick deltas.
+
+## 2026-04-21: Encoder Freshness Hardening
+
+- Context: the first camera-on test after longer uptime behaved differently than earlier tests soon after startup, and noisy encoder frames were observed near USB camera failures.
+- Concern: startup serial noise, stale encoder state, or delayed encoder updates can make the bridge start or continue encoder-based motion using bad tick baselines.
+- Applied next action:
+  - Added a `serial_settle_s = 2.0` startup settle/flush window after opening the Arduino serial port.
+  - Added `encoder_stale_timeout_s = 1.0`.
+  - Motion commands are rejected if no fresh encoder frame has arrived recently.
+  - Active motions are stopped if encoder data goes stale mid-command.
+- Rotation scale remains `0.895`; this change is meant to harden timing/state validity before the next calibration decision.
+- Next validation: restart bringup, wait until `/left_ticks` and `/right_ticks` are visibly publishing, then run one isolated +90 deg trial.
