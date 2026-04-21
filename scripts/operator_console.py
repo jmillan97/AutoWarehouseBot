@@ -10,25 +10,34 @@ from math import cos, isfinite, sin
 from tkinter import ttk
 
 import cv2
+import image_geometry
 import numpy as np
 import rclpy
+import tf2_ros
 from PIL import Image, ImageTk
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
-from sensor_msgs.msg import CompressedImage, LaserScan
+from sensor_msgs.msg import CameraInfo, CompressedImage, LaserScan
 from std_msgs.msg import Int32
 
 
 CAMERA_TOPIC = os.environ.get('OPERATOR_CAMERA_TOPIC', '/camera/image_raw/compressed')
+CAMERA_INFO_TOPIC = os.environ.get('OPERATOR_CAMERA_INFO_TOPIC', '/camera/camera_info')
 SCAN_TOPIC = os.environ.get('OPERATOR_SCAN_TOPIC', '/scan')
 MODEL_PATH = os.environ.get('OPERATOR_YOLO_MODEL', os.path.expanduser('~/warehouse_project/yolov8n.pt'))
 USE_YOLO = os.environ.get('OPERATOR_USE_YOLO', '1').strip().lower() not in ('0', 'false', 'no')
+USE_LIDAR_CAMERA_OVERLAY = (
+    os.environ.get('OPERATOR_LIDAR_CAMERA_OVERLAY', '1').strip().lower() not in ('0', 'false', 'no')
+)
 CONFIDENCE_THRESHOLD = float(os.environ.get('OPERATOR_YOLO_CONF', '0.4'))
 APP_TITLE = 'Warehouse Bot Operator Console'
 VIDEO_SIZE = (640, 480)
 SCAN_CANVAS_SIZE = 360
 SCAN_RATE_WINDOW = 30
 LOG_MAX_LINES = 200
+LIDAR_FRAME = os.environ.get('OPERATOR_LIDAR_FRAME', 'base_laser')
+CAMERA_FRAME = os.environ.get('OPERATOR_CAMERA_FRAME', 'camera_optical_link')
+OVERLAY_LOG_INTERVAL_S = 5.0
 
 
 class OperatorConsoleNode(Node):
@@ -40,8 +49,15 @@ class OperatorConsoleNode(Node):
         self.latest_frame_source = 'waiting'
         self.model = None
         self.class_names = {}
+        self.camera_model_lock = threading.Lock()
+        self.camera_model = None
+        self.camera_info_received = False
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        self.last_overlay_warning = {}
         self.scan_lock = threading.Lock()
         self.latest_scan_points = []
+        self.latest_scan_polar = []
         self.latest_scan_stats = {
             'source': 'waiting',
             'point_count': 0,
@@ -64,17 +80,35 @@ class OperatorConsoleNode(Node):
             qos_profile_sensor_data,
         )
         self.create_subscription(
+            CameraInfo,
+            CAMERA_INFO_TOPIC,
+            self._on_camera_info,
+            qos_profile_sensor_data,
+        )
+        self.create_subscription(
             LaserScan,
             SCAN_TOPIC,
             self._on_scan,
             qos_profile_sensor_data,
         )
         self.ui_queue.put(('log', f'Subscribed to {CAMERA_TOPIC}'))
+        self.ui_queue.put(('log', f'Subscribed to {CAMERA_INFO_TOPIC}'))
         self.ui_queue.put(('log', f'Subscribed to {SCAN_TOPIC}'))
+        if USE_LIDAR_CAMERA_OVERLAY:
+            self.ui_queue.put(('log', f'LiDAR camera overlay enabled: {LIDAR_FRAME} -> {CAMERA_FRAME}'))
+        else:
+            self.ui_queue.put(('log', 'LiDAR camera overlay disabled'))
         if self.model is not None:
             self.ui_queue.put(('log', f'YOLO overlay enabled: {MODEL_PATH}'))
         else:
             self.ui_queue.put(('log', 'YOLO overlay disabled; showing plain camera feed'))
+
+    def _log_overlay_warning(self, key: str, message: str) -> None:
+        now = time.time()
+        last = self.last_overlay_warning.get(key, 0.0)
+        if now - last >= OVERLAY_LOG_INTERVAL_S:
+            self.last_overlay_warning[key] = now
+            self.ui_queue.put(('log', message))
 
     def _load_model(self) -> None:
         try:
@@ -112,9 +146,23 @@ class OperatorConsoleNode(Node):
                 self.ui_queue.put(('log', f'YOLO inference failed, falling back to plain camera: {exc}'))
                 self.model = None
 
+        if USE_LIDAR_CAMERA_OVERLAY:
+            annotated, overlay_count, overlay_status = self._draw_lidar_camera_overlay(annotated)
+            if overlay_count > 0:
+                source = f'{source} + lidar'
+            elif overlay_status:
+                source = f'{source} ({overlay_status})'
+
         with self.frame_lock:
             self.latest_frame = annotated
             self.latest_frame_source = source
+
+    def _on_camera_info(self, msg: CameraInfo) -> None:
+        model = image_geometry.PinholeCameraModel()
+        model.fromCameraInfo(msg)
+        with self.camera_model_lock:
+            self.camera_model = model
+            self.camera_info_received = True
 
     def _on_scan(self, msg: LaserScan) -> None:
         now = time.time()
@@ -130,15 +178,20 @@ class OperatorConsoleNode(Node):
         angle = msg.angle_min
         range_min = max(0.0, float(msg.range_min))
         range_max = float(msg.range_max)
+        polar = []
         for distance in msg.ranges:
             if isfinite(distance) and range_min <= distance <= range_max:
-                points.append((distance * cos(angle), distance * sin(angle)))
+                x = distance * cos(angle)
+                y = distance * sin(angle)
+                points.append((x, y))
+                polar.append((float(distance), float(angle), x, y))
                 if min_range is None or distance < min_range:
                     min_range = float(distance)
             angle += msg.angle_increment
 
         with self.scan_lock:
             self.latest_scan_points = points
+            self.latest_scan_polar = polar
             self.latest_scan_stats = {
                 'source': SCAN_TOPIC,
                 'point_count': len(points),
@@ -146,6 +199,76 @@ class OperatorConsoleNode(Node):
                 'rate_hz': rate_hz,
                 'range_max': range_max,
             }
+
+    def _draw_lidar_camera_overlay(self, frame):
+        with self.camera_model_lock:
+            camera_model = self.camera_model
+            camera_info_received = self.camera_info_received
+        if not camera_info_received or camera_model is None:
+            self._log_overlay_warning('camera_info', f'LiDAR overlay waiting for {CAMERA_INFO_TOPIC}')
+            return frame, 0, 'overlay waiting for camera info'
+
+        with self.scan_lock:
+            scan_points = list(self.latest_scan_polar)
+        if not scan_points:
+            return frame, 0, 'overlay waiting for scan'
+
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                CAMERA_FRAME,
+                LIDAR_FRAME,
+                rclpy.time.Time(),
+                timeout=rclpy.duration.Duration(seconds=0.02),
+            ).transform
+        except Exception as exc:
+            self._log_overlay_warning('tf', f'LiDAR overlay waiting for TF {LIDAR_FRAME} -> {CAMERA_FRAME}: {exc}')
+            return frame, 0, 'overlay waiting for tf'
+
+        rotation = quaternion_to_matrix(
+            transform.rotation.x,
+            transform.rotation.y,
+            transform.rotation.z,
+            transform.rotation.w,
+        )
+        translation = np.array(
+            [transform.translation.x, transform.translation.y, transform.translation.z],
+            dtype=np.float64,
+        )
+
+        height, width = frame.shape[:2]
+        drawn = 0
+        for distance, _angle, x_laser, y_laser in scan_points:
+            point_laser = np.array([x_laser, y_laser, 0.0], dtype=np.float64)
+            point_camera = rotation @ point_laser + translation
+            if point_camera[2] <= 0.03:
+                continue
+            try:
+                u, v = camera_model.project3dToPixel(tuple(point_camera.tolist()))
+            except Exception:
+                continue
+            if not isfinite(u) or not isfinite(v):
+                continue
+            px = int(round(u))
+            py = int(round(v))
+            if 0 <= px < width and 0 <= py < height:
+                color = lidar_overlay_color(distance)
+                radius = 5 if distance < 0.75 else 4
+                cv2.circle(frame, (px, py), radius, color, -1, lineType=cv2.LINE_AA)
+                drawn += 1
+
+        if drawn > 0:
+            cv2.putText(
+                frame,
+                f'LiDAR overlay: {drawn} pts',
+                (12, height - 14),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                (230, 240, 255),
+                2,
+                cv2.LINE_AA,
+            )
+            return frame, drawn, ''
+        return frame, 0, 'overlay no visible scan points'
 
     def _results_to_detections(self, results):
         detections = []
@@ -207,6 +330,32 @@ def bgr_to_tk_image(frame, size):
     resized = cv2.resize(frame, size, interpolation=cv2.INTER_AREA)
     rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
     return ImageTk.PhotoImage(Image.fromarray(rgb))
+
+
+def quaternion_to_matrix(x: float, y: float, z: float, w: float):
+    norm = (x * x + y * y + z * z + w * w) ** 0.5
+    if norm == 0.0:
+        return np.identity(3, dtype=np.float64)
+    x /= norm
+    y /= norm
+    z /= norm
+    w /= norm
+    return np.array(
+        [
+            [1.0 - 2.0 * (y * y + z * z), 2.0 * (x * y - z * w), 2.0 * (x * z + y * w)],
+            [2.0 * (x * y + z * w), 1.0 - 2.0 * (x * x + z * z), 2.0 * (y * z - x * w)],
+            [2.0 * (x * z - y * w), 2.0 * (y * z + x * w), 1.0 - 2.0 * (x * x + y * y)],
+        ],
+        dtype=np.float64,
+    )
+
+
+def lidar_overlay_color(distance_m: float):
+    if distance_m < 0.5:
+        return (40, 40, 255)
+    if distance_m < 1.0:
+        return (0, 190, 255)
+    return (80, 220, 80)
 
 
 def format_scan_status(stats) -> str:
