@@ -764,3 +764,29 @@
   - Add `rotation_scale_negative_large = 1.35` for negative turns larger than 45 deg.
   - Add `rotation_large_angle_threshold_deg = 45.0`.
 - Next validation: restart bringup and run isolated -60 deg first. If it lands near 60 without overshoot/spinout, run -90 deg.
+
+## 2026-04-21: Large Negative Rotation Scale Validation
+
+- Log folders:
+  - `calibration_logs/20260421_121345_rotation`
+  - `calibration_logs/20260421_121503_rotation`
+- Bringup was running with `enable_camera:=false`.
+- Active `rotation_scale_negative_large`: `1.35`.
+- Active `rotation_large_angle_threshold_deg`: `45.0`.
+- -60 deg test:
+  - Measured physical rotation: about 60 deg.
+  - Encoder ticks: left -2679 -> -2550, right 4052 -> 3911.
+  - Tick deltas: left +129, right -141.
+  - Operator note: looks like 60.
+- -90 deg test:
+  - Measured physical rotation: about 87 deg.
+  - Encoder ticks: left -2550 -> -2365, right 3911 -> 3707.
+  - Tick deltas: left +185, right -204.
+  - Operator note: close enough.
+- Interpretation: direction-specific and angle-dependent rotation scaling is acceptable for the tested calibration set. The CSV error fields for negative turns are not reliable because the operator-entered measured magnitude is positive while the command is signed; use the notes and measured magnitudes for these trials.
+- Applied next action: accept current rotation constants:
+  - `rotation_scale_positive = 1.35`
+  - `rotation_scale_negative = 0.90`
+  - `rotation_scale_negative_large = 1.35`
+  - `rotation_large_angle_threshold_deg = 45.0`
+- Next validation: integrate these ROS movement topics into the main controls path, then run a short manual controls smoke test.
