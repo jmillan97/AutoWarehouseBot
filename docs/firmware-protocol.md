@@ -51,6 +51,47 @@ drive_lr:80,95
 drive_lr:-90,90
 ```
 
+## Flashing Firmware
+
+Use the repo flasher when changing `firmware.ino`:
+
+```bash
+cd /home/ece_441/AutoWarehouseBot
+./scripts/flash_arduino.sh --port /dev/arduino --fqbn arduino:avr:uno
+```
+
+First-time setup on a fresh Pi installs Arduino CLI, the AVR core, and the
+`EnableInterrupt` library:
+
+```bash
+./scripts/flash_arduino.sh --install-cli --port /dev/arduino --fqbn arduino:avr:uno
+```
+
+Defaults:
+
+- port: `/dev/arduino`
+- board: `arduino:avr:uno`
+- sketch: repo-root `firmware.ino`
+
+The script creates a temporary Arduino sketch folder before compiling because
+Arduino tooling expects the `.ino` filename to match its parent folder. It also
+skips reinstalling the AVR core and `EnableInterrupt` library once they already
+exist.
+
+Before flashing, stop Pi bringup or at least the serial bridge so `/dev/arduino`
+is not busy:
+
+```bash
+pkill -f serial_bridge_py
+```
+
+After a successful flash, a quick serial sanity check should show:
+
+```text
+ACK: SYSTEM_READY
+E:0,0
+```
+
 ## Why This Model
 
 - Preserves known-good motor behavior in firmware

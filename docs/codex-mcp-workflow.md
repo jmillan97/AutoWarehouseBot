@@ -126,6 +126,14 @@ git status --short
 ./scripts/check_topics.sh --snapshot
 ```
 
+Use Windows PowerShell for GitHub pushes. WSL-side pushes can stall badly in
+this setup, so commit from WSL if convenient, then push from Windows:
+
+```powershell
+cd \\wsl.localhost\Ubuntu-24.04\home\felix\warehouse_project
+git push
+```
+
 Use the SSH MCP for Pi commands:
 
 ```bash
@@ -145,7 +153,7 @@ The expected mapping is:
 
 ```text
 /dev/lidar   -> ttyUSB0
-/dev/arduino -> ttyUSB1
+/dev/arduino -> ttyUSB1 or ttyUSB2 depending on plug order
 ```
 
 Then start Pi bringup with LiDAR enabled:
