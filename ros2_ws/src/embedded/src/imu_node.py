@@ -108,6 +108,29 @@ class ImuNode(Node):
             0.0,     0.0,     diag[2],
         ]
 
+    def _assign_quaternion(self, msg: Imu, q) -> bool:
+        if hasattr(q, 'x') and hasattr(q, 'y') and hasattr(q, 'z') and hasattr(q, 'scalar'):
+            msg.orientation.x = q.x()
+            msg.orientation.y = q.y()
+            msg.orientation.z = q.z()
+            msg.orientation.w = q.scalar()
+            return True
+
+        try:
+            values = [float(v) for v in q]
+        except TypeError:
+            return False
+
+        if len(values) != 4:
+            return False
+
+        # RTIMULib's Python tuple is ordered x, y, z, w on this platform.
+        msg.orientation.x = values[0]
+        msg.orientation.y = values[1]
+        msg.orientation.z = values[2]
+        msg.orientation.w = values[3]
+        return True
+
     def publish_imu(self):
         if not self.imu.IMURead():
             return
@@ -123,11 +146,10 @@ class ImuNode(Node):
         # Orientation (fused quaternion from RTIMULib)
         if data.get('fusionQPoseValid', False) and 'fusionQPose' in data:
             q = data['fusionQPose']
-            imu_msg.orientation.x = q.x()
-            imu_msg.orientation.y = q.y()
-            imu_msg.orientation.z = q.z()
-            imu_msg.orientation.w = q.scalar()
-            imu_msg.orientation_covariance = self.orientation_covariance
+            if self._assign_quaternion(imu_msg, q):
+                imu_msg.orientation_covariance = self.orientation_covariance
+            else:
+                imu_msg.orientation_covariance[0] = -1.0
         else:
             # Orientation not valid yet
             imu_msg.orientation_covariance[0] = -1.0
