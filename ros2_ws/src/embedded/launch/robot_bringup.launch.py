@@ -133,7 +133,7 @@ def generate_launch_description():
             'command_speed': 90,
             'encoder_cpr': 2.0,
             'gear_ratio': 108.0,
-            'distance_scale': 0.9523809523809523,
+            'distance_scale': 1.0158730158730158,
             'rotation_scale': 1.5,
             'use_drive_lr_linear': True,
             'linear_balance_kp': 0.4,
