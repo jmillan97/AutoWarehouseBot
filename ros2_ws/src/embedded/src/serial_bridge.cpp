@@ -49,6 +49,7 @@ public:
     this->declare_parameter<double>("wheel_separation", 0.21);
     this->declare_parameter<double>("encoder_cpr", 2.0);
     this->declare_parameter<double>("gear_ratio", 108.0);
+    this->declare_parameter<double>("rotation_scale", 1.5);
     this->declare_parameter<double>("command_timeout_s", 15.0);
     this->declare_parameter<double>("command_rate_hz", 10.0);
 
@@ -59,6 +60,7 @@ public:
     wheel_sep_       = this->get_parameter("wheel_separation").as_double();
     encoder_cpr_     = this->get_parameter("encoder_cpr").as_double();
     gear_ratio_      = this->get_parameter("gear_ratio").as_double();
+    rotation_scale_  = this->get_parameter("rotation_scale").as_double();
     command_timeout_s_ = this->get_parameter("command_timeout_s").as_double();
     command_rate_hz_ = this->get_parameter("command_rate_hz").as_double();
 
@@ -289,7 +291,7 @@ private:
       const double meters = static_cast<double>(abs_value) / 1000.0;
       target_ticks = static_cast<long>(std::lround(meters / ticks_to_meters_));
     } else {
-      const double theta_rad = static_cast<double>(abs_value) * M_PI / 180.0;
+      const double theta_rad = static_cast<double>(abs_value) * rotation_scale_ * M_PI / 180.0;
       const double wheel_arc = (wheel_sep_ / 2.0) * theta_rad;
       target_ticks = static_cast<long>(std::lround(wheel_arc / ticks_to_meters_));
     }
@@ -361,8 +363,8 @@ private:
       if (motion_direction_ > 0) send_legacy_command("w");
       else send_legacy_command("s");
     } else if (motion_type_ == MotionType::Rotate) {
-      if (motion_direction_ > 0) send_legacy_command("q");
-      else send_legacy_command("e");
+      if (motion_direction_ > 0) send_legacy_command("e");
+      else send_legacy_command("q");
     }
   }
 
@@ -379,6 +381,7 @@ private:
   double wheel_sep_{0.21};
   double encoder_cpr_{2.0};
   double gear_ratio_{108.0};
+  double rotation_scale_{1.5};
   double ticks_to_meters_{0.0};
   double command_timeout_s_{15.0};
   double command_rate_hz_{10.0};

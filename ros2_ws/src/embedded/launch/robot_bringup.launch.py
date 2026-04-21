@@ -133,6 +133,7 @@ def generate_launch_description():
             'command_speed': 90,
             'encoder_cpr': 2.0,
             'gear_ratio': 108.0,
+            'rotation_scale': 1.5,
             'use_sim_time': use_sim_time,
         }]
     )

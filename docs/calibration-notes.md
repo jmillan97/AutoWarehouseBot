@@ -102,3 +102,84 @@
 - Expected movement effect: `/move_distance_mm` target ticks increase by 3.6x, which should correct the observed 30% physical travel response for 400 mm and 600 mm commands.
 - Command speed remains hardlocked at 90.
 - Next validation: repeat 200 mm and 400 mm distance trials after Pi pull/rebuild/relaunch.
+
+## 2026-04-20: Post-Patch Distance Trial 6, Commanded 200 mm, Speed 90, Gear Ratio 108
+
+- Log folder: `calibration_logs/20260420_223544_distance`
+- Commanded distance: 200 mm.
+- Measured physical distance: 210 mm.
+- Drift: about 10 mm left.
+- Encoder ticks: left 0 -> 182, right 0 -> 188.
+- Tick deltas: left 182, right 188.
+- Average tick delta: 185 ticks.
+- Odometry start pose: x 0.000 m, y 0.000 m, yaw 0.00 deg.
+- Odometry end pose: x 0.215 m, y -0.006 m, yaw 1.90 deg.
+- Odometry reported travel: about 215.2 mm.
+- IMU yaw: -23.12 deg -> -18.02 deg, delta about +5.11 deg.
+- Interpretation: gear ratio 108 corrected distance scale very well for a 200 mm command. Odom reported 215.2 mm vs 210 mm measured.
+
+## 2026-04-20: Post-Patch Distance Trial 7, Commanded 400 mm, Speed 90, Gear Ratio 108
+
+- Log folder: `calibration_logs/20260420_223824_distance`
+- Commanded distance: 400 mm.
+- Measured physical distance: 405 mm.
+- Drift: operator notes 55 mm left drift, although the structured drift field was entered as 0 mm.
+- Encoder ticks: start left 182, start right 188; end tick snapshot was missing.
+- Odometry start pose: x 0.215 m, y -0.006 m, yaw 1.90 deg.
+- Odometry end pose: x 0.638 m, y 0.012 m, yaw 7.62 deg.
+- Odometry reported travel: about 423.3 mm.
+- IMU yaw: -22.82 deg -> -9.90 deg, delta about +12.93 deg.
+- Interpretation: gear ratio 108 also corrected distance scale well for a 400 mm command. However, the 55 mm left drift and large IMU yaw change show heading/straightness still needs calibration or control correction.
+- Next action: keep gear ratio 108 for distance scale, then investigate left/right drive asymmetry and rotation calibration.
+
+## 2026-04-20: Post-Patch Distance Trial 8, Commanded 400 mm, Speed 90, Gear Ratio 108
+
+- Log folder: `calibration_logs/20260420_225031_distance`
+- Commanded distance: 400 mm.
+- Measured physical distance: 405 mm.
+- Drift: 35 mm left.
+- Encoder ticks: left 0 -> 358, right 0 -> 375.
+- Tick deltas: left 358, right 375.
+- Average tick delta: 366.5 ticks.
+- Odometry start pose: x -0.637 m, y 0.042 m, yaw -7.62 deg.
+- Odometry end pose: x -0.214 m, y -0.008 m, yaw -2.22 deg.
+- Odometry reported travel: about 426.2 mm.
+- IMU yaw: -20.48 deg -> -8.74 deg, delta about +11.75 deg.
+- Interpretation: distance scale remains excellent, but repeated 400 mm trials show consistent left drift and a significant positive yaw change. Left/right tick delta also shows right ticks greater than left ticks, matching a left-curving path.
+- Next action: keep gear ratio 108 and tune straight-line asymmetry/heading correction.
+
+## 2026-04-20: Rotation Trial 1, Commanded +90 deg, Speed 90, Gear Ratio 108
+
+- Log folder: `calibration_logs/20260420_230025_rotation`
+- Commanded rotation: +90 deg.
+- Measured physical rotation: about 60 deg to the right.
+- Operator note: unsure if right is expected direction; suggests separate rotation and forward movement parameters may be needed.
+- Direction prompt was marked correct, but physical note says the robot turned right.
+- Encoder ticks: left 358 -> 523, right 375 -> 232.
+- Tick deltas: left +165, right -143.
+- Odometry yaw: -2.22 deg -> -100.00 deg, delta about -97.78 deg.
+- IMU yaw: -11.45 deg -> -16.67 deg, delta about -5.22 deg.
+- Script suggested rotation scale: 1.5 based on physical 60 deg vs commanded 90 deg.
+- Interpretation: rotation behavior is not calibrated and may have a sign convention mismatch. Wheel odom reports almost the intended magnitude but opposite/rightward sign; physical measurement says only 60 deg right; fused IMU yaw did not track the observed physical turn reliably during this rotation snapshot.
+- Next action: treat rotation as a separate calibration path from forward distance. Verify expected sign convention for `/rotate_angle_deg`, then run +90 and -90 physical tests before patching wheel separation or rotation-specific target scaling.
+
+## 2026-04-20: Rotation Trial 2, Commanded -90 deg, Speed 90, Gear Ratio 108
+
+- Log folder: `calibration_logs/20260420_230440_rotation`
+- Commanded rotation: -90 deg.
+- Measured physical rotation: about 60 deg left.
+- Encoder ticks: left 523 -> 361, right 232 -> 384.
+- Tick deltas: left -162, right +152.
+- Odometry yaw: -100.00 deg -> -0.32 deg, delta about +99.68 deg.
+- IMU yaw: -13.51 deg -> -10.22 deg, delta about +3.29 deg.
+- Script suggested rotation scale is not directly usable because measured angle was entered as positive 60 for a negative command. Physical magnitude still indicates about 1.5x target scaling is needed.
+- Interpretation: rotation sign is physically opposite the ROS comment convention. `+90` produced right turn, `-90` produced left turn. Magnitude is also low: both +/-90 commands produced about 60 deg physical rotation.
+- Next action: flip rotate command sign mapping so positive degrees means physical left/CCW, and apply a rotation-specific target scale of about 1.5 without changing forward distance scale.
+
+## 2026-04-20: Rotation Control Patch
+
+- Added `rotation_scale = 1.5` to the serial bridge motion model.
+- Applied `rotation_scale` only to `/rotate_angle_deg`; forward `/move_distance_mm` remains unchanged.
+- Flipped rotation legacy command mapping so positive ROS rotation should produce physical left/CCW.
+- Kept `gear_ratio = 108.0` and `command_speed = 90`.
+- Next validation: run +90 and -90 rotation trials; expected physical results are about 90 deg left for +90 and about 90 deg right for -90.

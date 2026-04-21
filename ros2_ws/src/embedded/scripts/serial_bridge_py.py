@@ -49,6 +49,7 @@ class SerialBridgePy(Node):
         self.declare_parameter("wheel_separation", 0.21)
         self.declare_parameter("encoder_cpr", 2.0)
         self.declare_parameter("gear_ratio", 108.0)
+        self.declare_parameter("rotation_scale", 1.5)
         self.declare_parameter("command_timeout_s", 15.0)
         self.declare_parameter("command_rate_hz", 10.0)
 
@@ -59,6 +60,7 @@ class SerialBridgePy(Node):
         self.wheel_sep = float(self.get_parameter("wheel_separation").value)
         self.encoder_cpr = float(self.get_parameter("encoder_cpr").value)
         self.gear_ratio = float(self.get_parameter("gear_ratio").value)
+        self.rotation_scale = float(self.get_parameter("rotation_scale").value)
         self.command_timeout_s = float(self.get_parameter("command_timeout_s").value)
         self.command_rate_hz = float(self.get_parameter("command_rate_hz").value)
 
@@ -159,7 +161,7 @@ class SerialBridgePy(Node):
             meters = abs_value / 1000.0
             target_ticks = int(round(meters / self.ticks_to_m))
         else:
-            theta = math.radians(abs_value)
+            theta = math.radians(abs_value * self.rotation_scale)
             wheel_arc = (self.wheel_sep / 2.0) * theta
             target_ticks = int(round(wheel_arc / self.ticks_to_m))
 
@@ -222,7 +224,7 @@ class SerialBridgePy(Node):
         if m.mode == "linear":
             self._send_cmd("w" if m.direction > 0 else "s")
         else:
-            self._send_cmd("q" if m.direction > 0 else "e")
+            self._send_cmd("e" if m.direction > 0 else "q")
 
     def _read_loop(self) -> None:
         buf = ""
