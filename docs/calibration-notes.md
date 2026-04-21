@@ -605,3 +605,22 @@
 - Interpretation: two consecutive 0.895 trials produced about 45 deg with similar tick deltas, but the noisy serial line means the bridge may be dropping usable encoder updates. Before changing rotation scale again, harden encoder parsing so glued encoder frames do not poison motion completion.
 - Applied next action: update `serial_bridge_py` to recover valid encoder frames from noisy lines containing embedded `E:` frames.
 - Next validation: restart Pi bringup and rerun one isolated +90 deg trial at the same `rotation_scale = 0.895`.
+
+## 2026-04-21: Rotation Scale 0.895 After Parser Recovery, +90 deg
+
+- Log folder: `calibration_logs/20260421_113436_rotation`
+- Active `rotation_scale`: `0.895`.
+- Active `rotation_speed`: `80`.
+- Active `rotation_command_interval_s`: `0.75`.
+- Commanded rotation: +90 deg.
+- Measured physical rotation: about 110 deg.
+- Operator note: another recovered encoder warning happened before the trial.
+- Direction was marked correct, but pass/fail was marked false.
+- Encoder ticks: left -667 -> -922, right 1798 -> 2093.
+- Tick deltas: left -255, right +295.
+- Odom yaw delta: about +174.6 deg.
+- IMU yaw delta: about +8.3 deg.
+- Operator observed a recovered noisy encoder line near the same time as a USB camera timeout/crash.
+- Interpretation: the parser recovery works, but rotation is still not repeatable. The recovered encoder warning and `usb_cam` timeout appearing together suggest USB/power/load interference may be delaying or corrupting serial updates during motion.
+- Applied next action: hold `rotation_scale = 0.895`; do the next isolated rotation test with the camera node disabled or stopped so serial/encoder timing can be measured without USB camera failures in the same run.
+- Next validation: rerun one isolated +90 deg trial at the same scale with camera off, then compare physical angle and tick deltas.
