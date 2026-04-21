@@ -299,3 +299,18 @@
 - Applied next action: adjusted `distance_scale` to `0.9523809523809523`.
 - Interpretation: the previous 0.8333 scale over-corrected. The new value uses the latest tape/tick result to move the 200 mm command back toward target while staying below the original unscaled command.
 - Next validation: rerun a 200 mm trial after restarting Pi bringup.
+
+## 2026-04-21: Distance Scale Confirmed, 200 mm
+
+- Log folder: `calibration_logs/20260421_013922_distance`
+- Active `distance_scale`: `0.9523809523809523`.
+- Commanded distance: 200 mm.
+- Measured physical distance: 200 mm.
+- Physical drift: about 20 mm left.
+- Encoder ticks: left 0 -> 158, right 0 -> 181.
+- Tick deltas: left +158, right +181.
+- Odom distance: about 197.1 mm.
+- Odom yaw change: about +7.3 deg.
+- Interpretation: linear distance magnitude is now calibrated well enough for 200 mm trials. The remaining issue is straightness: the right side is still accumulating more ticks than the left, matching the observed left drift.
+- Applied next action: increased `linear_balance_kp` from `0.4` to `0.8` while keeping `distance_scale` unchanged.
+- Next validation: rerun the same 200 mm distance trial and compare drift plus left/right tick delta.

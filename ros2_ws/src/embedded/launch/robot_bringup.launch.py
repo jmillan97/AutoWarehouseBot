@@ -136,7 +136,7 @@ def generate_launch_description():
             'distance_scale': 0.9523809523809523,
             'rotation_scale': 1.5,
             'use_drive_lr_linear': True,
-            'linear_balance_kp': 0.4,
+            'linear_balance_kp': 0.8,
             'use_sim_time': use_sim_time,
         }]
     )

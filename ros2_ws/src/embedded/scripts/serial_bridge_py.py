@@ -52,7 +52,7 @@ class SerialBridgePy(Node):
         self.declare_parameter("distance_scale", 0.9523809523809523)
         self.declare_parameter("rotation_scale", 1.5)
         self.declare_parameter("use_drive_lr_linear", True)
-        self.declare_parameter("linear_balance_kp", 0.4)
+        self.declare_parameter("linear_balance_kp", 0.8)
         self.declare_parameter("command_timeout_s", 15.0)
         self.declare_parameter("command_rate_hz", 10.0)
 
