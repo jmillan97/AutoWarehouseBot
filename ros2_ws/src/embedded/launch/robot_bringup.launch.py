@@ -130,6 +130,7 @@ def generate_launch_description():
         parameters=[{
             'serial_port': serial_port,
             'serial_baud': serial_baud,
+            'command_speed': 90,
             'use_sim_time': use_sim_time,
         }]
     )

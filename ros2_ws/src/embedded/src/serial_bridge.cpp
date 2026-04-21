@@ -44,7 +44,7 @@ public:
   {
     this->declare_parameter<std::string>("serial_port", "/dev/ttyUSB0");
     this->declare_parameter<int>("serial_baud", 115200);
-    this->declare_parameter<int>("command_speed", 180);
+    this->declare_parameter<int>("command_speed", 90);
     this->declare_parameter<double>("wheel_radius", 0.04);
     this->declare_parameter<double>("wheel_separation", 0.21);
     this->declare_parameter<double>("encoder_cpr", 2.0);
@@ -374,7 +374,7 @@ private:
   rclcpp::TimerBase::SharedPtr control_timer_;
 
   // Motion model / command params
-  int command_speed_{180};
+  int command_speed_{90};
   double wheel_radius_{0.04};
   double wheel_sep_{0.21};
   double encoder_cpr_{2.0};

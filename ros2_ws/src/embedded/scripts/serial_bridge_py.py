@@ -44,7 +44,7 @@ class SerialBridgePy(Node):
 
         self.declare_parameter("serial_port", "/dev/ttyUSB0")
         self.declare_parameter("serial_baud", 115200)
-        self.declare_parameter("command_speed", 180)
+        self.declare_parameter("command_speed", 90)
         self.declare_parameter("wheel_radius", 0.04)
         self.declare_parameter("wheel_separation", 0.21)
         self.declare_parameter("encoder_cpr", 2.0)
@@ -294,4 +294,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
