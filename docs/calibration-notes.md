@@ -550,3 +550,21 @@
 - Interpretation: odom currently overestimates physical yaw during turns, so rotation tuning should trust the physical measurement. The scale response remains nonlinear: 0.6667 produced about 30 deg, 0.86 produced about 45 deg, and 1.0 produced about 135 deg.
 - Applied next action: set `rotation_scale = 0.93` by interpolating between the 0.86 and 1.0 trials for a target near 90 deg. Kept `rotation_speed = 80`.
 - Next validation: restart Pi bringup and rerun one isolated +90 deg trial.
+
+## 2026-04-21: Rotation Scale 0.93 Validation, +90 deg
+
+- Log folder: `calibration_logs/20260421_112207_rotation`
+- Active `rotation_scale`: `0.93`.
+- Active `rotation_speed`: `80`.
+- Active `rotation_command_interval_s`: `0.75`.
+- Commanded rotation: +90 deg.
+- Measured physical rotation: about 110 deg.
+- Operator note: 110 to the right.
+- Direction was marked correct.
+- Encoder ticks: left 1 -> -237, right 1190 -> 1456.
+- Tick deltas: left -238, right +266.
+- Odom yaw delta: about +160.0 deg.
+- IMU yaw delta: about +8.0 deg.
+- Interpretation: the 0.93 trial overshot, but it is now bracketing the target with the previous 0.86 trial. Odom still overestimates physical yaw substantially during turns.
+- Applied next action: set `rotation_scale = 0.895`, interpolating between scale 0.86 -> 45 deg and scale 0.93 -> 110 deg for a target near 90 deg. Kept `rotation_speed = 80`.
+- Next validation: restart Pi bringup and rerun one isolated +90 deg trial.
