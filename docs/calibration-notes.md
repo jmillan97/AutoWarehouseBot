@@ -532,3 +532,21 @@
 - Interpretation: stop behavior is clean now, but rotation response is nonlinear around short tick targets. Scale 1.0 produced about 135 deg, while scale 0.6667 produced about 30 deg.
 - Applied next action: set `rotation_scale = 0.86` by interpolating between the 1.0 and 0.6667 trials for a target near 90 deg. Kept `rotation_speed = 80`.
 - Next validation: restart Pi bringup and rerun one isolated +90 deg trial.
+
+## 2026-04-21: Rotation Scale 0.86 Validation, +90 deg
+
+- Log folder: `calibration_logs/20260421_111616_rotation`
+- Active `rotation_scale`: `0.86`.
+- Active `rotation_speed`: `80`.
+- Active `rotation_command_interval_s`: `0.75`.
+- Commanded rotation: +90 deg.
+- Measured physical rotation: about 45 deg.
+- Operator note: only 45 deg.
+- Direction was marked correct.
+- Encoder ticks: left 1 -> -134, right 1038 -> 1190.
+- Tick deltas: left -135, right +152.
+- Odom yaw delta: about +90.8 deg.
+- IMU yaw delta: about +14.3 deg.
+- Interpretation: odom currently overestimates physical yaw during turns, so rotation tuning should trust the physical measurement. The scale response remains nonlinear: 0.6667 produced about 30 deg, 0.86 produced about 45 deg, and 1.0 produced about 135 deg.
+- Applied next action: set `rotation_scale = 0.93` by interpolating between the 0.86 and 1.0 trials for a target near 90 deg. Kept `rotation_speed = 80`.
+- Next validation: restart Pi bringup and rerun one isolated +90 deg trial.
