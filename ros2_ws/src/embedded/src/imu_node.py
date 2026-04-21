@@ -124,11 +124,11 @@ class ImuNode(Node):
         if len(values) != 4:
             return False
 
-        # RTIMULib's Python tuple is ordered x, y, z, w on this platform.
-        msg.orientation.x = values[0]
-        msg.orientation.y = values[1]
-        msg.orientation.z = values[2]
-        msg.orientation.w = values[3]
+        # RTIMULib's Python tuple is ordered w, x, y, z on this platform.
+        msg.orientation.w = values[0]
+        msg.orientation.x = values[1]
+        msg.orientation.y = values[2]
+        msg.orientation.z = values[3]
         return True
 
     def publish_imu(self):
