@@ -409,3 +409,23 @@
   - `linear_balance_kp = 0.4`
   - `linear_steer_bias = -6.0`
 - Next action: run square/path validation to see how the calibrated straight segments and existing rotation calibration compose over multiple moves.
+
+## 2026-04-21: Calibrated Square Path Validation
+
+- Log folder: `calibration_logs/20260421_022534_square`
+- Sequence: four 400 mm forward moves and four +90 deg turns.
+- Pause after each segment: 6.0 s.
+- Active forward calibration:
+  - `distance_scale = 1.0158730158730158`
+  - `linear_balance_kp = 0.4`
+  - `linear_steer_bias = -6.0`
+- Physical final pose note: about 10 cm forward, 8 cm right, and 50 deg from start.
+- Numeric entered fields:
+  - `final_x_error = 100 mm`
+  - `final_y_error = 80 mm`
+  - `final_heading_error = 30 deg`
+- The notes field says 50 deg heading error, so treat the exact heading as uncertain but still significantly nonzero.
+- Odom start/end delta: x about +391 mm, y about -214 mm, yaw about +167.6 deg.
+- IMU yaw delta: about +26.2 deg.
+- Interpretation: square/path error improved dramatically compared with the earlier automatic square test, but the final heading is still off enough that rotation composition is now the main issue. Straight segments are acceptable; repeated turns are accumulating heading error.
+- Next action: rerun rotation validation with the current code, especially +90 deg repeated 3 times and +360 deg once. Use physical measured angle as the source of truth, then retune `rotation_scale` if needed.
