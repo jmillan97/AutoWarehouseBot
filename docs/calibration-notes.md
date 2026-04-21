@@ -429,3 +429,17 @@
 - IMU yaw delta: about +26.2 deg.
 - Interpretation: square/path error improved dramatically compared with the earlier automatic square test, but the final heading is still off enough that rotation composition is now the main issue. Straight segments are acceptable; repeated turns are accumulating heading error.
 - Next action: rerun rotation validation with the current code, especially +90 deg repeated 3 times and +360 deg once. Use physical measured angle as the source of truth, then retune `rotation_scale` if needed.
+
+## 2026-04-21: Rotation Legacy Path Failure
+
+- Log folder: `calibration_logs/20260421_023442_rotation`
+- Commanded rotation: +90 deg.
+- Operator note: robot spun about a full 360 deg plus roughly 39 deg more, all to the left.
+- Numeric measured angle was entered as 30 deg, but the freeform note is the trusted physical observation.
+- Bridge log showed `target_ticks=213` and completion around `traveled=224`, so the encoder stop condition fired even though physical rotation was far too large.
+- Interpretation: legacy rotation commands (`e/q`) are no longer a trustworthy rotation path. Do not retune from the numeric CSV summary for this run.
+- Applied next action: moved rotation control to `drive_lr` just like linear control, added `rotation_speed = 60`, and reset `rotation_scale = 1.0` for fresh calibration.
+- New rotation command convention:
+  - positive `/rotate_angle_deg` sends `drive_lr:-rotation_speed,+rotation_speed`
+  - negative `/rotate_angle_deg` sends `drive_lr:+rotation_speed,-rotation_speed`
+- Next validation: restart Pi bringup and run one isolated +90 deg trial.

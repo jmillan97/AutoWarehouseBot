@@ -50,7 +50,8 @@ class SerialBridgePy(Node):
         self.declare_parameter("encoder_cpr", 2.0)
         self.declare_parameter("gear_ratio", 108.0)
         self.declare_parameter("distance_scale", 1.0158730158730158)
-        self.declare_parameter("rotation_scale", 1.5)
+        self.declare_parameter("rotation_scale", 1.0)
+        self.declare_parameter("rotation_speed", 60)
         self.declare_parameter("use_drive_lr_linear", True)
         self.declare_parameter("linear_balance_kp", 0.4)
         self.declare_parameter("linear_steer_bias", -6.0)
@@ -66,6 +67,7 @@ class SerialBridgePy(Node):
         self.gear_ratio = float(self.get_parameter("gear_ratio").value)
         self.distance_scale = float(self.get_parameter("distance_scale").value)
         self.rotation_scale = float(self.get_parameter("rotation_scale").value)
+        self.rotation_speed = int(self.get_parameter("rotation_speed").value)
         self.use_drive_lr_linear = bool(self.get_parameter("use_drive_lr_linear").value)
         self.linear_balance_kp = float(self.get_parameter("linear_balance_kp").value)
         self.linear_steer_bias = float(self.get_parameter("linear_steer_bias").value)
@@ -73,6 +75,7 @@ class SerialBridgePy(Node):
         self.command_rate_hz = float(self.get_parameter("command_rate_hz").value)
 
         self.command_speed = max(0, min(255, self.command_speed))
+        self.rotation_speed = max(0, min(255, self.rotation_speed))
         effective_cpr = self.encoder_cpr * self.gear_ratio
         self.ticks_to_m = (2.0 * math.pi * self.wheel_radius) / effective_cpr
 
@@ -244,7 +247,9 @@ class SerialBridgePy(Node):
             else:
                 self._send_cmd("w" if m.direction > 0 else "s")
         else:
-            self._send_cmd("e" if m.direction > 0 else "q")
+            left_pwm = -self.rotation_speed * m.direction
+            right_pwm = self.rotation_speed * m.direction
+            self._send_drive_lr(left_pwm, right_pwm)
 
     def _read_loop(self) -> None:
         buf = ""
