@@ -700,3 +700,28 @@
 - Interpretation: `rotation_scale = 1.35` is acceptable for the currently tested positive turn direction. Tick deltas are balanced and the guarded stop behavior is clean.
 - Applied next action: keep `rotation_scale = 1.35` and start testing the opposite turn direction.
 - Next validation: run isolated negative turns, starting with -30 deg, then -90 deg if the small turn is clean.
+
+## 2026-04-21: Rotation Scale 1.35 Validation, Negative Turns
+
+- Log folders:
+  - `calibration_logs/20260421_120113_rotation`
+  - `calibration_logs/20260421_120216_rotation`
+- Bringup was running with `enable_camera:=false`.
+- Active shared `rotation_scale`: `1.35`.
+- Active `rotation_speed`: `80`.
+- -30 deg test:
+  - Measured physical rotation: about 45 deg.
+  - Encoder ticks: left -3328 -> -3247, right 4751 -> 4667.
+  - Tick deltas: left +81, right -84.
+  - Operator note: a little overshoot, no skid.
+- -90 deg test:
+  - Measured physical rotation: about 135 deg.
+  - Encoder ticks: left -3248 -> -2959, right 4667 -> 4354.
+  - Tick deltas: left +289, right -313.
+  - Operator note: overshot.
+- Interpretation: negative turns are consistent but about 1.5x too large using the positive-direction scale. Positive and negative rotation need separate scale parameters.
+- Applied next action:
+  - Added `rotation_scale_positive = 1.35`.
+  - Added `rotation_scale_negative = 0.90`, based on `1.35 * 30 / 45`.
+  - Left legacy `rotation_scale = 1.35` in place for compatibility, but rotation control now chooses the direction-specific scale.
+- Next validation: restart bringup and run isolated -30 deg first. If clean, run -90 deg.
