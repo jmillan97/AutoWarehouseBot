@@ -49,7 +49,7 @@ class SerialBridgePy(Node):
         self.declare_parameter("wheel_separation", 0.21)
         self.declare_parameter("encoder_cpr", 2.0)
         self.declare_parameter("gear_ratio", 108.0)
-        self.declare_parameter("distance_scale", 0.8333333333333334)
+        self.declare_parameter("distance_scale", 0.9523809523809523)
         self.declare_parameter("rotation_scale", 1.5)
         self.declare_parameter("use_drive_lr_linear", True)
         self.declare_parameter("linear_balance_kp", 0.4)

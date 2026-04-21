@@ -285,3 +285,17 @@
 - Interpretation: the new WSL -> ROS -> Pi bridge -> Arduino `drive_lr` command path is working. Distance is now about 20% long, and the robot still drifts left; right-side tick travel is about 7% higher than left-side tick travel.
 - Applied next action: added `distance_scale = 0.8333333333333334` to the Pi serial bridge linear target calculation and launch defaults. This scales only `/move_distance_mm`; rotation commands are unchanged.
 - Next validation: rerun a 200 mm trial. After distance magnitude is back near target, tune the linear left/right balancing term for drift.
+
+## 2026-04-21: Distance Scale Validation, 200 mm
+
+- Log folder: `calibration_logs/20260421_013426_distance`
+- Commanded distance: 200 mm.
+- Measured physical distance: 175 mm.
+- Physical drift: about 15 mm left.
+- Encoder ticks: left 0 -> 152, right 0 -> 159.
+- Tick deltas: left +152, right +159.
+- Odom distance field is not trusted for this run because the start/end `/odom` snapshots jumped by several meters, which is inconsistent with the encoder and tape-measure data.
+- Script summary suggested scale from this run alone: 1.1429 relative to the active `distance_scale = 0.8333`.
+- Applied next action: adjusted `distance_scale` to `0.9523809523809523`.
+- Interpretation: the previous 0.8333 scale over-corrected. The new value uses the latest tape/tick result to move the 200 mm command back toward target while staying below the original unscaled command.
+- Next validation: rerun a 200 mm trial after restarting Pi bringup.
