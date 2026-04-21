@@ -341,3 +341,19 @@
 - Interpretation: distance magnitude remains correct and encoder labels now look plausible, but physical drift is still left even when encoder ticks are close. Tick balancing alone is not enough for straightness on this floor/drive geometry.
 - Applied next action: added `linear_steer_bias = 6.0`. Positive bias raises left-side PWM and lowers right-side PWM during linear moves, nudging the robot right to counter left drift. Kept `linear_balance_kp = 0.4`.
 - Next validation: restart Pi bringup and rerun the 200 mm trial. Watch whether drift drops below 30 mm while distance stays near 200 mm.
+
+## 2026-04-21: Positive Steering Bias Validation, 200 mm
+
+- Log folder: `calibration_logs/20260421_020201_distance`
+- Active `distance_scale`: `0.9523809523809523`.
+- Active `linear_balance_kp`: `0.4`.
+- Active `linear_steer_bias`: `6.0`.
+- Commanded distance: 200 mm.
+- Measured physical distance: 200 mm.
+- Physical drift: about 30 mm left, noted as same as the previous trial.
+- Encoder ticks: left +184, right +163.
+- Odom distance: about 201.8 mm.
+- Odom yaw change: about -6.7 deg.
+- Interpretation: distance remains excellent, but positive steering bias did not reduce observed left drift and increased left/right tick asymmetry. The fixed bias direction is not helping this chassis/floor setup.
+- Applied next action: reversed fixed steering bias to `linear_steer_bias = -6.0` for one controlled validation while keeping `distance_scale = 0.9523809523809523` and `linear_balance_kp = 0.4`.
+- Next validation: rerun the 200 mm trial and compare drift direction/magnitude.
