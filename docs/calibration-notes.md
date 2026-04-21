@@ -458,3 +458,20 @@
   - Added explicit `drive_lr:0,0` before `x` on motion complete, timeout, and cancel.
   - Kept `rotation_scale = 1.0` and `rotation_speed = 60` for the next isolated test.
 - Next validation: restart Pi bringup and run one isolated +90 deg trial. If direction is still wrong but overspin is controlled, flip rotation sign next.
+
+## 2026-04-21: Throttled Rotation Validation, +90 deg
+
+- Log folder: `calibration_logs/20260421_104308_rotation`
+- Active `rotation_scale`: `1.0`.
+- Active `rotation_speed`: `60`.
+- Active `rotation_command_interval_s`: `0.75`.
+- Commanded rotation: +90 deg.
+- Measured physical rotation: about 45 deg.
+- Operator note: "45 deg to the right, no weirdness".
+- Direction was marked correct by the operator.
+- Encoder ticks: left 0 -> -134, right 0 -> 171.
+- Odom yaw delta: about +96.8 deg.
+- IMU yaw delta: about +7.4 deg.
+- Interpretation: the serial backlog/runaway rotation problem is fixed. Physical rotation now under-rotates by about 50%, while odom/IMU remain inconsistent with the tape/visual measurement.
+- Applied next action: set `rotation_scale = 2.0`, keeping `rotation_speed = 60` and `rotation_command_interval_s = 0.75`.
+- Next validation: restart Pi bringup and rerun one isolated +90 deg trial.
