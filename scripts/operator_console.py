@@ -199,7 +199,7 @@ class OperatorConsoleNode(Node):
 
     def publish_rotate_deg(self, value: int) -> None:
         self.rotate_pub.publish(Int32(data=int(value)))
-        direction = 'CCW' if value >= 0 else 'CW'
+        direction = 'right' if value >= 0 else 'left'
         self.ui_queue.put(('log', f'Sent /rotate_angle_deg={value} ({direction})'))
 
 
@@ -250,7 +250,8 @@ def build_help_text() -> str:
         'Notes:\n'
         '  forward/move use /move_distance_mm\n'
         '  left/right/rotate use /rotate_angle_deg\n'
-        '  positive rotate = CCW, negative rotate = CW'
+        '  left/right commands are mapped to the calibrated robot directions\n'
+        '  raw rotate_deg keeps the signed ROS command value'
     )
 
 
@@ -281,9 +282,9 @@ def parse_operator_command(text: str):
         action, value_text, _unit = rotate_match.groups()
         deg = round(float(value_text))
         if action == 'right':
-            deg = -abs(deg)
-        elif action == 'left':
             deg = abs(deg)
+        elif action == 'left':
+            deg = -abs(deg)
         return ('rotate_deg', deg)
 
     raw_move_match = re.fullmatch(r'move_mm\s+(-?\d+)', cmd)
@@ -373,8 +374,8 @@ class OperatorConsoleApp:
         quick_buttons = [
             ('Forward 1 ft', lambda: self._send_move_feet(1.0)),
             ('Back 1 ft', lambda: self._send_move_feet(-1.0)),
-            ('Left 90', lambda: self._send_rotate_deg(90)),
-            ('Right 90', lambda: self._send_rotate_deg(-90)),
+            ('Left 90', lambda: self._send_rotate_deg(-90)),
+            ('Right 90', lambda: self._send_rotate_deg(90)),
         ]
         for idx, (label, callback) in enumerate(quick_buttons):
             ttk.Button(quick_frame, text=label, command=callback).grid(

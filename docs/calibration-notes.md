@@ -789,4 +789,8 @@
   - `rotation_scale_negative = 0.90`
   - `rotation_scale_negative_large = 1.35`
   - `rotation_large_angle_threshold_deg = 45.0`
-- Next validation: integrate these ROS movement topics into the main controls path, then run a short manual controls smoke test.
+- Controls integration:
+  - `scripts/operator_console.py` already sends motion through `/move_distance_mm` and `/rotate_angle_deg`, so it automatically uses the calibrated bridge.
+  - Human-facing left/right controls were corrected at the console layer: `left` now sends a negative signed turn and `right` sends a positive signed turn, matching the observed physical robot directions.
+  - Raw `rotate_deg` commands remain signed ROS values for debugging.
+- Next validation: run the operator console and smoke-test `left 30`, `right 30`, `left 90`, and `right 90`.
