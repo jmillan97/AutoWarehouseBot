@@ -244,8 +244,42 @@ class RosRunner:
         return text
 
     def publish_int_once(self, topic: str, value: int) -> None:
-        command = f"ros2 topic pub --once {shlex.quote(topic)} std_msgs/msg/Int32 '{{data: {value}}}'"
-        self.run(command, timeout=8.0, check=not self.dry_run)
+        code = f"""
+import sys
+import time
+
+import rclpy
+from std_msgs.msg import Int32
+
+rclpy.init()
+node = rclpy.create_node("calibration_single_publisher")
+publisher = node.create_publisher(Int32, {topic!r}, 10)
+
+deadline = time.time() + 3.0
+while publisher.get_subscription_count() < 1 and time.time() < deadline:
+    rclpy.spin_once(node, timeout_sec=0.1)
+
+subscription_count = publisher.get_subscription_count()
+if subscription_count < 1:
+    node.get_logger().error("No subscribers found for {topic}")
+    node.destroy_node()
+    rclpy.shutdown()
+    sys.exit(2)
+
+message = Int32()
+message.data = {int(value)}
+publisher.publish(message)
+
+end_time = time.time() + 0.5
+while time.time() < end_time:
+    rclpy.spin_once(node, timeout_sec=0.05)
+
+node.get_logger().info("Published {value} to {topic} for %d subscriber(s)" % subscription_count)
+node.destroy_node()
+rclpy.shutdown()
+"""
+        command = f"python3 -c {shlex.quote(code)}"
+        self.run(command, timeout=7.0, check=not self.dry_run)
 
 
 def parse_data_int(text: str) -> int | None:
