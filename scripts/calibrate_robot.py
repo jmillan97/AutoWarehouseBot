@@ -41,6 +41,7 @@ DEFAULT_SQUARE_CYCLES = 4
 DEFAULT_SQUARE_SIDE_MM = 400
 DEFAULT_SQUARE_TURN_DEG = 90
 DEFAULT_SQUARE_PAUSE_S = 4.0
+ROS_SETUP_DONE = False
 
 
 def parse_int_list(value: str) -> list[int]:
@@ -190,6 +191,7 @@ class RosRunner:
     def __init__(self, run: CalibrationRun):
         self.calibration_run = run
         self.dry_run = run.args.dry_run
+        self.command_publisher: PersistentCommandPublisher | None = None
 
     def _bash_command(self, command: str) -> list[str]:
         workspace_setup = REPO_ROOT / "ros2_ws" / "install" / "setup.bash"
@@ -244,42 +246,84 @@ class RosRunner:
         return text
 
     def publish_int_once(self, topic: str, value: int) -> None:
-        code = f"""
-import sys
-import time
+        if self.dry_run:
+            print(f"[dry-run] publish {value} -> {topic}")
+            return
+        if self.command_publisher is None:
+            self.command_publisher = PersistentCommandPublisher()
+        self.command_publisher.publish_int(topic, value)
 
-import rclpy
-from std_msgs.msg import Int32
+    def prepare_int_publisher(self, topic: str) -> None:
+        if self.dry_run:
+            return
+        if self.command_publisher is None:
+            self.command_publisher = PersistentCommandPublisher()
+        self.command_publisher.prepare(topic)
 
-rclpy.init()
-node = rclpy.create_node("calibration_single_publisher")
-publisher = node.create_publisher(Int32, {topic!r}, 10)
+    def close(self) -> None:
+        if self.command_publisher is not None:
+            self.command_publisher.close()
+            self.command_publisher = None
 
-deadline = time.time() + 10.0
-while publisher.get_subscription_count() < 1 and time.time() < deadline:
-    rclpy.spin_once(node, timeout_sec=0.1)
 
-subscription_count = publisher.get_subscription_count()
-if subscription_count < 1:
-    node.get_logger().error("No subscribers found for {topic}")
-    node.destroy_node()
-    rclpy.shutdown()
-    sys.exit(2)
+def ensure_ros_python_imports() -> None:
+    global ROS_SETUP_DONE
+    if ROS_SETUP_DONE:
+        return
+    workspace_python = REPO_ROOT / "ros2_ws" / "install" / "lib" / "python3.12" / "site-packages"
+    for path in ("/opt/ros/kilted/lib/python3.12/site-packages", str(workspace_python)):
+        if path not in sys.path and Path(path).exists():
+            sys.path.insert(0, path)
+    ROS_SETUP_DONE = True
 
-message = Int32()
-message.data = {int(value)}
-publisher.publish(message)
 
-end_time = time.time() + 0.5
-while time.time() < end_time:
-    rclpy.spin_once(node, timeout_sec=0.05)
+class PersistentCommandPublisher:
+    def __init__(self) -> None:
+        ensure_ros_python_imports()
+        import rclpy
+        from std_msgs.msg import Int32
 
-node.get_logger().info("Published {value} to {topic} for %d subscriber(s)" % subscription_count)
-node.destroy_node()
-rclpy.shutdown()
-"""
-        command = f"python3 -c {shlex.quote(code)}"
-        self.run(command, timeout=15.0, check=not self.dry_run)
+        self.rclpy = rclpy
+        self.msg_type = Int32
+        self.rclpy.init(args=None)
+        self.node = self.rclpy.create_node("calibration_command_publisher")
+        self.publishers: dict[str, object] = {}
+
+    def _publisher_for(self, topic: str):
+        publisher = self.publishers.get(topic)
+        if publisher is None:
+            publisher = self.node.create_publisher(self.msg_type, topic, 10)
+            self.publishers[topic] = publisher
+        return publisher
+
+    def prepare(self, topic: str, discovery_timeout_s: float = 15.0) -> None:
+        publisher = self._publisher_for(topic)
+        deadline = time.time() + discovery_timeout_s
+        while publisher.get_subscription_count() < 1 and time.time() < deadline:
+            self.rclpy.spin_once(self.node, timeout_sec=0.1)
+
+        subscription_count = publisher.get_subscription_count()
+        if subscription_count < 1:
+            raise RuntimeError(f"No subscribers found for {topic} after {discovery_timeout_s:.1f}s")
+        print(f"Ready to publish {topic}; found {subscription_count} subscriber(s).")
+
+    def publish_int(self, topic: str, value: int, discovery_timeout_s: float = 15.0) -> None:
+        publisher = self._publisher_for(topic)
+        self.prepare(topic, discovery_timeout_s)
+        subscription_count = publisher.get_subscription_count()
+
+        message = self.msg_type()
+        message.data = int(value)
+        publisher.publish(message)
+
+        end_time = time.time() + 0.8
+        while time.time() < end_time:
+            self.rclpy.spin_once(self.node, timeout_sec=0.05)
+        print(f"Published {value} to {topic} for {subscription_count} subscriber(s).")
+
+    def close(self) -> None:
+        self.node.destroy_node()
+        self.rclpy.shutdown()
 
 
 def parse_data_int(text: str) -> int | None:
@@ -661,79 +705,83 @@ def run_distance(args: argparse.Namespace) -> Path:
     ros = RosRunner(run)
     print(f"Distance calibration log: {run.path}")
     trial_rows: list[dict[str, object]] = []
+    ros.prepare_int_publisher("/move_distance_mm")
 
-    for distance in args.distances:
-        for repeat in range(1, args.repeats + 1):
-            trial_id = f"distance_{distance}mm_r{repeat}"
-            wait_for_operator(f"Set robot at tape-measure zero for {trial_id}.", args)
-            start_ticks = append_tick_snapshot(run, ros, trial_id, "start")
-            start_odom = append_odom_snapshot(run, ros, trial_id, "start")
-            start_imu = append_imu_snapshot(run, ros, trial_id, "start")
+    try:
+        for distance in args.distances:
+            for repeat in range(1, args.repeats + 1):
+                trial_id = f"distance_{distance}mm_r{repeat}"
+                wait_for_operator(f"Set robot at tape-measure zero for {trial_id}.", args)
+                start_ticks = append_tick_snapshot(run, ros, trial_id, "start")
+                start_odom = append_odom_snapshot(run, ros, trial_id, "start")
+                start_imu = append_imu_snapshot(run, ros, trial_id, "start")
 
-            streams = start_optional_streams(run, ros, trial_id)
-            try:
                 ros.publish_int_once("/move_distance_mm", distance)
-                time.sleep(0.1 if args.dry_run else movement_wait_seconds("distance", distance))
-            finally:
-                stop_streams(streams)
+                streams = start_optional_streams(run, ros, trial_id)
+                try:
+                    time.sleep(0.1 if args.dry_run else movement_wait_seconds("distance", distance))
+                finally:
+                    stop_streams(streams)
 
-            end_ticks = append_tick_snapshot(run, ros, trial_id, "end")
-            end_odom = append_odom_snapshot(run, ros, trial_id, "end")
-            end_imu = append_imu_snapshot(run, ros, trial_id, "end")
+                end_ticks = append_tick_snapshot(run, ros, trial_id, "end")
+                end_odom = append_odom_snapshot(run, ros, trial_id, "end")
+                end_imu = append_imu_snapshot(run, ros, trial_id, "end")
 
-            measured = prompt_float("Measured actual distance in mm", default=float(distance) if args.dry_run else None, skip=args.dry_run)
-            drift = prompt_float("Measured lateral drift in mm, optional", default=0.0, skip=args.dry_run)
-            passed = prompt_bool("Pass this trial?", default=True, skip=args.dry_run)
-            notes = prompt_text("Notes", default="", skip=args.dry_run)
+                measured = prompt_float("Measured actual distance in mm", default=float(distance) if args.dry_run else None, skip=args.dry_run)
+                drift = prompt_float("Measured lateral drift in mm, optional", default=0.0, skip=args.dry_run)
+                passed = prompt_bool("Pass this trial?", default=True, skip=args.dry_run)
+                notes = prompt_text("Notes", default="", skip=args.dry_run)
 
-            measured_value = measured if measured is not None else 0.0
-            error_mm = measured_value - distance
-            scale = (distance / measured_value) if measured_value else 0.0
-            left_delta = None
-            right_delta = None
-            if start_ticks["left_ticks"] is not None and end_ticks["left_ticks"] is not None:
-                left_delta = end_ticks["left_ticks"] - start_ticks["left_ticks"]
-            if start_ticks["right_ticks"] is not None and end_ticks["right_ticks"] is not None:
-                right_delta = end_ticks["right_ticks"] - start_ticks["right_ticks"]
+                measured_value = measured if measured is not None else 0.0
+                error_mm = measured_value - distance
+                scale = (distance / measured_value) if measured_value else 0.0
+                left_delta = None
+                right_delta = None
+                if start_ticks["left_ticks"] is not None and end_ticks["left_ticks"] is not None:
+                    left_delta = end_ticks["left_ticks"] - start_ticks["left_ticks"]
+                if start_ticks["right_ticks"] is not None and end_ticks["right_ticks"] is not None:
+                    right_delta = end_ticks["right_ticks"] - start_ticks["right_ticks"]
 
-            odom_distance = None
-            if start_odom.get("position_x") is not None and end_odom.get("position_x") is not None:
-                dx = (end_odom.get("position_x") or 0.0) - (start_odom.get("position_x") or 0.0)
-                dy = (end_odom.get("position_y") or 0.0) - (start_odom.get("position_y") or 0.0)
-                odom_distance = math.sqrt(dx * dx + dy * dy) * 1000.0
+                odom_distance = None
+                if start_odom.get("position_x") is not None and end_odom.get("position_x") is not None:
+                    dx = (end_odom.get("position_x") or 0.0) - (start_odom.get("position_x") or 0.0)
+                    dy = (end_odom.get("position_y") or 0.0) - (start_odom.get("position_y") or 0.0)
+                    odom_distance = math.sqrt(dx * dx + dy * dy) * 1000.0
 
-            row = {
-                "timestamp": iso_now(),
-                "trial_id": trial_id,
-                "commanded_distance_mm": distance,
-                "measured_distance_mm": measured,
-                "error_mm": error_mm,
-                "error_percent": percent_error(error_mm, distance),
-                "suggested_distance_scale": scale,
-                "drift_mm": drift,
-                "left_tick_delta": left_delta,
-                "right_tick_delta": right_delta,
-                "odom_distance_mm": odom_distance,
-                "imu_yaw_start_deg": start_imu.get("orientation_yaw_deg"),
-                "imu_yaw_end_deg": end_imu.get("orientation_yaw_deg"),
-                "passed": passed,
-                "notes": notes,
-            }
-            fields = list(row.keys())
-            run.csv_append("trials.csv", row, fields)
-            trial_rows.append(row)
-            write_observation(
-                run,
-                {
+                row = {
                     "timestamp": iso_now(),
-                    "test": "distance",
                     "trial_id": trial_id,
-                    "prompt": "measured_distance_mm",
-                    "value": measured,
-                    "units": "mm",
+                    "commanded_distance_mm": distance,
+                    "measured_distance_mm": measured,
+                    "error_mm": error_mm,
+                    "error_percent": percent_error(error_mm, distance),
+                    "suggested_distance_scale": scale,
+                    "drift_mm": drift,
+                    "left_tick_delta": left_delta,
+                    "right_tick_delta": right_delta,
+                    "odom_distance_mm": odom_distance,
+                    "imu_yaw_start_deg": start_imu.get("orientation_yaw_deg"),
+                    "imu_yaw_end_deg": end_imu.get("orientation_yaw_deg"),
+                    "passed": passed,
                     "notes": notes,
-                },
-            )
+                }
+                fields = list(row.keys())
+                run.csv_append("trials.csv", row, fields)
+                trial_rows.append(row)
+                write_observation(
+                    run,
+                    {
+                        "timestamp": iso_now(),
+                        "test": "distance",
+                        "trial_id": trial_id,
+                        "prompt": "measured_distance_mm",
+                        "value": measured,
+                        "units": "mm",
+                        "notes": notes,
+                    },
+                )
+    finally:
+        ros.close()
 
     write_distance_summary(run, trial_rows)
     print(f"Distance calibration complete: {run.path}")
