@@ -357,3 +357,18 @@
 - Interpretation: distance remains excellent, but positive steering bias did not reduce observed left drift and increased left/right tick asymmetry. The fixed bias direction is not helping this chassis/floor setup.
 - Applied next action: reversed fixed steering bias to `linear_steer_bias = -6.0` for one controlled validation while keeping `distance_scale = 0.9523809523809523` and `linear_balance_kp = 0.4`.
 - Next validation: rerun the 200 mm trial and compare drift direction/magnitude.
+
+## 2026-04-21: Negative Steering Bias Validation, 200 mm
+
+- Log folder: `calibration_logs/20260421_020717_distance`
+- Active `distance_scale`: `0.9523809523809523`.
+- Active `linear_balance_kp`: `0.4`.
+- Active `linear_steer_bias`: `-6.0`.
+- Commanded distance: 200 mm.
+- Measured physical distance: 200 mm.
+- Physical drift: about 1 mm right.
+- Odom distance: about 204.2 mm.
+- Odom yaw change: about +2.2 deg.
+- Tick caveat: right tick snapshot was blank in this run, so do not use this run for left/right tick balance analysis.
+- Interpretation: negative steering bias is the best 200 mm result so far. Distance remained exact and physical lateral drift dropped from about 30 mm left to about 1 mm right.
+- Next action: stop tuning on 200 mm and validate at a longer distance, preferably 400 mm. If 400 mm lands near target with modest drift, keep the current values and move on to rotation/square validation.
