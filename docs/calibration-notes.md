@@ -653,3 +653,27 @@
   - Added `rotation_imbalance_stop_ratio = 3.0`; if one side is racing more than 3x the other after meaningful motion has started, stop and warn.
 - Rotation scale remains `0.895`.
 - Next validation: restart bringup and run one isolated +90 deg trial with the camera still off. Watch for `Rotation stopped for side imbalance`.
+
+## 2026-04-21: Rotation Guard Validation, +30 deg and +90 deg
+
+- Log folders:
+  - `calibration_logs/20260421_115252_rotation`
+  - `calibration_logs/20260421_115409_rotation`
+- Bringup was running with `enable_camera:=false`.
+- Active `rotation_scale`: `0.895`.
+- Active `rotation_speed`: `80`.
+- Active `rotation_command_interval_s`: `0.75`.
+- +30 deg safety test:
+  - Measured physical rotation: about 20 deg.
+  - Encoder ticks: left -2898 -> -2949, right 4274 -> 4330.
+  - Tick deltas: left -51, right +56.
+  - Operator note: no skid.
+- +90 deg follow-up:
+  - Measured physical rotation: about 45 deg.
+  - Encoder ticks: left -2949 -> -3078, right 4330 -> 4472.
+  - Tick deltas: left -129, right +142.
+  - Operator note: looks better, no skid.
+- Pi bringup log for the +90 deg run showed clean completion: `Motion complete traveled=133 target=127 left=120 right=133`.
+- Interpretation: the spinout guard fixed the dangerous failure mode. Wheel deltas are now balanced and stops are clean, but physical rotation still undershoots. The +30 deg trial gives a safer scale correction than jumping from the +90 deg undershoot alone.
+- Applied next action: set `rotation_scale = 1.35`, based on the +30 deg result (`0.895 * 30 / 20`). Keep `rotation_speed = 80`.
+- Next validation: restart bringup and run one isolated +30 deg trial first. If it lands near 30 deg without imbalance warnings, rerun +90 deg.
