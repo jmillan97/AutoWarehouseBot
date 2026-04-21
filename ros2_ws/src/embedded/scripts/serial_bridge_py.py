@@ -49,6 +49,7 @@ class SerialBridgePy(Node):
         self.declare_parameter("wheel_separation", 0.21)
         self.declare_parameter("encoder_cpr", 2.0)
         self.declare_parameter("gear_ratio", 108.0)
+        self.declare_parameter("distance_scale", 0.8333333333333334)
         self.declare_parameter("rotation_scale", 1.5)
         self.declare_parameter("use_drive_lr_linear", True)
         self.declare_parameter("linear_balance_kp", 0.4)
@@ -62,6 +63,7 @@ class SerialBridgePy(Node):
         self.wheel_sep = float(self.get_parameter("wheel_separation").value)
         self.encoder_cpr = float(self.get_parameter("encoder_cpr").value)
         self.gear_ratio = float(self.get_parameter("gear_ratio").value)
+        self.distance_scale = float(self.get_parameter("distance_scale").value)
         self.rotation_scale = float(self.get_parameter("rotation_scale").value)
         self.use_drive_lr_linear = bool(self.get_parameter("use_drive_lr_linear").value)
         self.linear_balance_kp = float(self.get_parameter("linear_balance_kp").value)
@@ -167,7 +169,7 @@ class SerialBridgePy(Node):
         abs_value = abs(signed_value)
 
         if mode == "linear":
-            meters = abs_value / 1000.0
+            meters = (abs_value * self.distance_scale) / 1000.0
             target_ticks = int(round(meters / self.ticks_to_m))
         else:
             theta = math.radians(abs_value * self.rotation_scale)

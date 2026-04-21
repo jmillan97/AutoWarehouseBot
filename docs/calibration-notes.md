@@ -270,3 +270,18 @@
   - `right_pwm = command_speed + correction`
 - Initial `linear_balance_kp`: 0.4.
 - Next validation: upload firmware, restart Pi bringup, then run 400 mm distance and square tests to see whether left drift decreases.
+
+## 2026-04-21: Post-Flash Independent Drive Distance Trial
+
+- Log folder: `calibration_logs/20260421_012229_distance`
+- Commanded distance: 200 mm.
+- Measured physical distance: 240 mm.
+- Physical drift: about 20 mm left.
+- Encoder ticks: left 0 -> 195, right 0 -> 209.
+- Tick deltas: left +195, right +209.
+- Odom distance: about 235.0 mm.
+- Odom yaw change: about +4.4 deg.
+- Script summary suggested distance scale: 0.8333.
+- Interpretation: the new WSL -> ROS -> Pi bridge -> Arduino `drive_lr` command path is working. Distance is now about 20% long, and the robot still drifts left; right-side tick travel is about 7% higher than left-side tick travel.
+- Applied next action: added `distance_scale = 0.8333333333333334` to the Pi serial bridge linear target calculation and launch defaults. This scales only `/move_distance_mm`; rotation commands are unchanged.
+- Next validation: rerun a 200 mm trial. After distance magnitude is back near target, tune the linear left/right balancing term for drift.
