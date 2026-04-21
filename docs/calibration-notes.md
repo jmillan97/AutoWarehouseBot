@@ -475,3 +475,18 @@
 - Interpretation: the serial backlog/runaway rotation problem is fixed. Physical rotation now under-rotates by about 50%, while odom/IMU remain inconsistent with the tape/visual measurement.
 - Applied next action: set `rotation_scale = 2.0`, keeping `rotation_speed = 60` and `rotation_command_interval_s = 0.75`.
 - Next validation: restart Pi bringup and rerun one isolated +90 deg trial.
+
+## 2026-04-21: Rotation Scale 2.0 Validation, +90 deg
+
+- Log folder: `calibration_logs/20260421_104856_rotation`
+- Active `rotation_scale`: `2.0`.
+- Active `rotation_speed`: `60`.
+- Active `rotation_command_interval_s`: `0.75`.
+- Commanded rotation: +90 deg.
+- Measured physical rotation: about 225 deg to the right.
+- Operator note: "overshot hella".
+- Encoder ticks: left 0 -> -418, right 0 -> 512.
+- Pi bridge log showed `target_ticks=283` and `Motion complete traveled=287`, but one more `drive_lr:-60,60` command was acknowledged after completion before `drive_lr:0,0`.
+- Interpretation: scale 2.0 is too high, and rotation still has enough stop latency/coast that high speed magnifies overshoot. The direction is usable, but calibration should continue conservatively.
+- Applied next action: set `rotation_scale = 1.2` and lower `rotation_speed = 40`, keeping `rotation_command_interval_s = 0.75`.
+- Next validation: restart Pi bringup and rerun one isolated +90 deg trial.
