@@ -37,6 +37,10 @@ DEFAULT_EKF_SEGMENTS = [
     ("forward", 500),
     ("rotate", -90),
 ]
+DEFAULT_SQUARE_CYCLES = 4
+DEFAULT_SQUARE_SIDE_MM = 400
+DEFAULT_SQUARE_TURN_DEG = 90
+DEFAULT_SQUARE_PAUSE_S = 4.0
 
 
 def parse_int_list(value: str) -> list[int]:
@@ -933,6 +937,109 @@ def run_ekf(args: argparse.Namespace) -> Path:
     return run.path
 
 
+def run_square(args: argparse.Namespace) -> Path:
+    run = CalibrationRun("square", args)
+    ros = RosRunner(run)
+    print(f"Square drift calibration log: {run.path}")
+
+    wait_for_operator(
+        "Set robot center on the start mark, align heading, and clear the square path.",
+        args,
+    )
+
+    start_odom = append_odom_snapshot(run, ros, "square", "start", "/odom", "odom")
+    start_imu = append_imu_snapshot(run, ros, "square", "start")
+
+    segment_fields = [
+        "timestamp",
+        "segment_index",
+        "command_kind",
+        "command_value",
+        "pause_after_s",
+        "dry_run",
+    ]
+    segment_index = 0
+    for cycle in range(1, args.cycles + 1):
+        for kind, value in (("forward", args.side_mm), ("rotate", args.turn_deg)):
+            segment_index += 1
+            row = {
+                "timestamp": iso_now(),
+                "segment_index": segment_index,
+                "command_kind": kind,
+                "command_value": value,
+                "pause_after_s": args.pause,
+                "dry_run": args.dry_run,
+            }
+            run.csv_append("segments.csv", row, segment_fields)
+            print(f"Segment {segment_index}: {kind} {value}")
+            if kind == "forward":
+                ros.publish_int_once("/move_distance_mm", int(value))
+                sleep_for = movement_wait_seconds("distance", int(value))
+            else:
+                ros.publish_int_once("/rotate_angle_deg", int(value))
+                sleep_for = movement_wait_seconds("rotation", int(value))
+            if not args.dry_run:
+                time.sleep(sleep_for)
+                time.sleep(max(0.0, args.pause))
+
+    end_odom = append_odom_snapshot(run, ros, "square", "end", "/odom", "odom")
+    end_imu = append_imu_snapshot(run, ros, "square", "end")
+
+    final_x_error = prompt_float("Final X error in mm (+forward, -back)", default=0.0, skip=args.dry_run)
+    final_y_error = prompt_float("Final Y error in mm (+left, -right)", default=0.0, skip=args.dry_run)
+    final_heading_error = prompt_float("Final heading error in deg (+left, -right)", default=0.0, skip=args.dry_run)
+    notes = prompt_text("Overall square notes", default="", skip=args.dry_run)
+
+    observation_rows = [
+        ("final_x_error", final_x_error, "mm"),
+        ("final_y_error", final_y_error, "mm"),
+        ("final_heading_error", final_heading_error, "deg"),
+    ]
+    for prompt, value, units in observation_rows:
+        write_observation(
+            run,
+            {
+                "timestamp": iso_now(),
+                "test": "square",
+                "trial_id": "final",
+                "prompt": prompt,
+                "value": value,
+                "units": units,
+                "notes": notes,
+            },
+        )
+
+    odom_dx_mm = None
+    odom_dy_mm = None
+    if start_odom.get("position_x") is not None and end_odom.get("position_x") is not None:
+        odom_dx_mm = ((end_odom.get("position_x") or 0.0) - (start_odom.get("position_x") or 0.0)) * 1000.0
+        odom_dy_mm = ((end_odom.get("position_y") or 0.0) - (start_odom.get("position_y") or 0.0)) * 1000.0
+    summary = [
+        {"metric": "cycles", "value": args.cycles, "units": "count"},
+        {"metric": "side_mm", "value": args.side_mm, "units": "mm"},
+        {"metric": "turn_deg", "value": args.turn_deg, "units": "deg"},
+        {"metric": "pause_after_segment", "value": args.pause, "units": "s"},
+        {"metric": "final_x_error", "value": final_x_error, "units": "mm"},
+        {"metric": "final_y_error", "value": final_y_error, "units": "mm"},
+        {"metric": "final_heading_error", "value": final_heading_error, "units": "deg"},
+        {"metric": "odom_dx", "value": odom_dx_mm, "units": "mm"},
+        {"metric": "odom_dy", "value": odom_dy_mm, "units": "mm"},
+        {
+            "metric": "odom_yaw_delta",
+            "value": angle_delta_deg(start_odom.get("yaw_deg"), end_odom.get("yaw_deg")),
+            "units": "deg",
+        },
+        {
+            "metric": "imu_yaw_delta",
+            "value": angle_delta_deg(start_imu.get("orientation_yaw_deg"), end_imu.get("orientation_yaw_deg")),
+            "units": "deg",
+        },
+    ]
+    run.csv_write("summary.csv", summary, ["metric", "value", "units"])
+    print(f"Square drift calibration complete: {run.path}")
+    return run.path
+
+
 def add_common_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--dry-run", action="store_true", help="Create logs and print commands without moving the robot.")
     parser.add_argument("--yes", action="store_true", help="Skip readiness prompts; measurement prompts still appear for real movement tests.")
@@ -943,12 +1050,16 @@ def add_common_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--angles", type=parse_int_list, default=DEFAULT_ANGLES_DEG, help="Comma-separated angle list in deg.")
     parser.add_argument("--imu-seconds", type=float, default=60.0, help="Seconds to capture /imu/data.")
     parser.add_argument("--hz-seconds", type=float, default=30.0, help="Seconds to sample ros2 topic hz /imu/data.")
+    parser.add_argument("--side-mm", type=int, default=DEFAULT_SQUARE_SIDE_MM, help="Square side length for the square test.")
+    parser.add_argument("--turn-deg", type=int, default=DEFAULT_SQUARE_TURN_DEG, help="Turn angle for the square test.")
+    parser.add_argument("--pause", type=float, default=DEFAULT_SQUARE_PAUSE_S, help="Pause after each square segment.")
+    parser.add_argument("--cycles", type=int, default=DEFAULT_SQUARE_CYCLES, help="Forward/turn cycles for the square test.")
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="One-click CSV calibration pipeline for the warehouse robot.")
     subparsers = parser.add_subparsers(dest="command", required=True)
-    for name in ["imu", "distance", "rotation", "ekf", "all"]:
+    for name in ["imu", "distance", "rotation", "ekf", "square", "all"]:
         sub = subparsers.add_parser(name)
         add_common_options(sub)
     return parser
@@ -968,6 +1079,8 @@ def main(argv: list[str] | None = None) -> int:
         run_rotation(args)
     elif args.command == "ekf":
         run_ekf(args)
+    elif args.command == "square":
+        run_square(args)
     elif args.command == "all":
         run_imu(args)
         run_distance(args)

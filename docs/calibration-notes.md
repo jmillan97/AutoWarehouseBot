@@ -183,3 +183,60 @@
 - Flipped rotation legacy command mapping so positive ROS rotation should produce physical left/CCW.
 - Kept `gear_ratio = 108.0` and `command_speed = 90`.
 - Next validation: run +90 and -90 rotation trials; expected physical results are about 90 deg left for +90 and about 90 deg right for -90.
+
+## 2026-04-20: Post-Patch Rotation Trial 3, Commanded +90 deg
+
+- Log folder: `calibration_logs/20260420_231618_rotation`
+- Commanded rotation: +90 deg.
+- Measured physical rotation: about 95 deg left.
+- Encoder ticks: left 0 -> -236, right 0 -> 227.
+- Tick deltas: left -236, right +227.
+- Odometry yaw: 0.00 deg -> 146.98 deg.
+- IMU yaw: -12.63 deg -> -10.79 deg, delta about +1.84 deg.
+- Interpretation: physical sign is now correct and magnitude is close. Odom yaw overestimates rotation substantially, while IMU yaw snapshots still under-report rotation.
+
+## 2026-04-20: Post-Patch Rotation Trial 4, Commanded -90 deg
+
+- Log folder: `calibration_logs/20260420_231835_rotation`
+- Commanded rotation: -90 deg.
+- Measured physical rotation: about 92 deg right.
+- Encoder ticks: left -236 -> 1, right 227 -> 12.
+- Tick deltas: left +237, right -215.
+- Odometry yaw: 146.98 deg -> 3.49 deg, delta about -143.49 deg.
+- IMU yaw: -11.63 deg -> -29.98 deg, delta about -18.36 deg.
+- Interpretation: physical sign is correct and magnitude is close. Rotation control is now usable for +/-90 commands, but odometry yaw overestimates rotation and IMU yaw remains unreliable for these snapshot-only rotation measurements.
+- Next action: keep `rotation_scale = 1.5` for command behavior, then separately calibrate wheel odom yaw by tuning `wheel_separation` or choosing whether EKF should trust IMU/wheel yaw.
+
+## 2026-04-20: Post-Patch Rotation Trial 5, Commanded +180 deg
+
+- Log folder: `calibration_logs/20260420_232323_rotation`
+- Commanded rotation: +180 deg.
+- Measured physical rotation: about 181 deg left.
+- Operator notes: basically perfect.
+- Encoder ticks: left 1 -> -448, right 12 -> 435.
+- Tick deltas: left -449, right +423.
+- Odometry yaw: 3.49 deg -> -79.68 deg. The raw snapshot delta is misleading because yaw wraps across the +/-180 range during a large turn.
+- IMU yaw: -11.74 deg -> -31.41 deg, delta about -19.67 deg.
+- Interpretation: command-side rotation behavior is now excellent for 90 and 180 deg turns. Do not change `rotation_scale` based on this run. Odom and IMU yaw snapshots are not reliable enough by themselves for large rotation validation without unwrapping/continuous capture.
+- Next action: keep command calibration fixed and improve rotation logging/analysis before tuning wheel odom yaw.
+
+## 2026-04-20: Manual Square Path Test, 400 mm Sides
+
+- Sequence: four 400 mm forward moves and four +90 deg left turns.
+- Distance logs used:
+  - `calibration_logs/20260420_234329_distance`
+  - `calibration_logs/20260420_234924_distance`
+  - `calibration_logs/20260420_235241_distance`
+  - `calibration_logs/20260420_235619_distance`
+- Rotation logs used:
+  - `calibration_logs/20260420_234649_rotation`
+  - `calibration_logs/20260420_235134_rotation`
+  - `calibration_logs/20260420_235424_rotation`
+  - `calibration_logs/20260420_235726_rotation`
+- Forward segments were recorded as 400 mm each.
+- Left drift was entered as about 20 mm for each forward segment.
+- Rotation segments were recorded as about 93 deg each.
+- Final physical position: X changed from 0 cm to 8 cm, so X error is about +8 cm. Y changed from 11 cm to 29 cm, so Y error is about +18 cm.
+- Final physical heading: about 60 deg left of starting heading.
+- Interpretation: individual distance and turn commands are usable, but open-loop square driving still accumulates too much heading/pose error. The repeated left drift and large final heading error point toward needing heading correction during forward motion and better continuous yaw logging.
+- Next action: implement a single `square` calibration command that streams `/odom`, `/imu/data`, and ticks continuously across the full path, then use that data to tune heading correction/EKF rather than relying on separate start/end snapshots.
