@@ -52,7 +52,7 @@ class SerialBridgePy(Node):
         self.declare_parameter("distance_scale", 0.9523809523809523)
         self.declare_parameter("rotation_scale", 1.5)
         self.declare_parameter("use_drive_lr_linear", True)
-        self.declare_parameter("linear_balance_kp", 0.8)
+        self.declare_parameter("linear_balance_kp", 0.4)
         self.declare_parameter("command_timeout_s", 15.0)
         self.declare_parameter("command_rate_hz", 10.0)
 
@@ -280,7 +280,9 @@ class SerialBridgePy(Node):
         if "," not in payload:
             self.get_logger().warn(f"Malformed encoder line: {line}")
             return
-        left_s, right_s = payload.split(",", 1)
+        # Firmware prints E:<front_right_ticks>,<rear_left_ticks>.
+        # Publish them under robot-side names for odom and balancing.
+        right_s, left_s = payload.split(",", 1)
         try:
             left = int(left_s)
             right = int(right_s)

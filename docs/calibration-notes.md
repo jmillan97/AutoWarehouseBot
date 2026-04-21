@@ -314,3 +314,16 @@
 - Interpretation: linear distance magnitude is now calibrated well enough for 200 mm trials. The remaining issue is straightness: the right side is still accumulating more ticks than the left, matching the observed left drift.
 - Applied next action: increased `linear_balance_kp` from `0.4` to `0.8` while keeping `distance_scale` unchanged.
 - Next validation: rerun the same 200 mm distance trial and compare drift plus left/right tick delta.
+
+## 2026-04-21: Encoder Label Swap Found
+
+- Log folder: `calibration_logs/20260421_014654_distance`
+- Active `linear_balance_kp`: `0.8`.
+- Commanded distance: 200 mm.
+- Operator note: "22cm fwd, 40mm left drift". The numeric `measured_distance_mm` was entered as `22.0`, so the note is trusted as 220 mm.
+- Logged ticks: `left_ticks` +167, `right_ticks` +198.
+- Firmware inspection showed Arduino serial output is `E:<ticksFR>,<ticksRL>`.
+- `ticksFR` is front-right and `ticksRL` is rear-left, but `serial_bridge_py` was parsing the first value as left and the second value as right.
+- Interpretation: `/left_ticks` and `/right_ticks` were swapped. The balancing loop was using the wrong encoder labels, so increasing `linear_balance_kp` could make drift worse.
+- Applied next action: parse `E:` as `right,left`, so ROS `/left_ticks` now comes from `ticksRL` and `/right_ticks` comes from `ticksFR`. Reset `linear_balance_kp` to `0.4` for the first corrected-label validation.
+- Next validation: restart Pi bringup and rerun the same 200 mm distance trial.
