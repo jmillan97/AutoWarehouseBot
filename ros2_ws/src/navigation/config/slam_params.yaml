@@ -1,0 +1,74 @@
+# slam_params.yaml
+# =================
+# AutoWarehouseBot — SLAM Toolbox config
+# Tuned for RPLidar A1 + Pi 3B+ hardware
+#
+# Place at: ros2_ws/src/wb_nav/config/slam_params.yaml
+
+slam_toolbox:
+  ros__parameters:
+
+    # ── Mode ──────────────────────────────────────────────────────
+    # online_async: processes scans as they arrive, runs on laptop
+    mode: mapping
+
+    # ── Topics / frames ───────────────────────────────────────────
+    odom_frame:   odom
+    map_frame:    map
+    base_frame:   base_link
+    scan_topic:   /scan
+
+    # ── Solver ────────────────────────────────────────────────────
+    solver_plugin:            solver_plugins::CeresSolver
+    ceres_linear_solver:      SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner:     SCHUR_JACOBI
+    ceres_trust_strategy:     LEVENBERG_MARQUARDT
+    ceres_dogleg_type:        TRADITIONAL_DOGLEG
+    ceres_loss_function:      None
+
+    # ── Map update rate ───────────────────────────────────────────
+    # Warehouse is small — 5Hz update is fine and keeps CPU low
+    map_update_interval:      0.2      # seconds between map publishes
+    resolution:               0.05     # 5cm per cell — good for a warehouse
+
+    # ── Scan matching ─────────────────────────────────────────────
+    # RPLidar A1 has ~8m range, 360° at 5.5Hz
+    # Keep these conservative — A1 is not high-end
+    max_laser_range:          8.0      # [m] A1 rated range
+    minimum_travel_distance:  0.25     # [m] how far to move before new scan is processed
+    minimum_travel_heading:   0.26     # [rad] ~15° heading change to trigger new scan
+    scan_buffer_size:         10
+    scan_buffer_maximum_scan_distance: 10.0
+    link_match_minimum_response_fine:  0.1
+    distance_decomposition_radius:     0.5
+    search_size:              0.5
+    resolution_multiplier:    1
+
+    # ── Loop closure ─────────────────────────────────────────────
+    # Enable — warehouse has repeated features (shelves, walls)
+    # that benefit from loop closure
+    loop_search_space_dimension:      8.0
+    loop_match_minimum_response_coarse: 0.35
+    loop_match_minimum_response_fine:   0.45
+    loop_match_maximum_variance_coarse: 3.0
+    loop_match_minimum_chain_size:      10
+    loop_closure_minimum_response_fine: 0.45
+    link_scan_maximum_distance:         1.5
+    do_loop_closing:                    true
+
+    # ── TF / timing ───────────────────────────────────────────────
+    # SLAM Toolbox publishes the map→odom transform
+    # Nav2 AMCL will replace this during navigation phase
+    transform_publish_period:   0.02   # 50Hz TF publish
+    tf_buffer_duration:         30.0
+
+    # ── Serialization (for saving/loading sessions) ───────────────
+    # Save the SLAM session so you can resume mapping later
+    # without re-driving the whole warehouse
+    map_file_name:    /home/jmill/maps/warehouse_map
+    map_start_pose:   [0.0, 0.0, 0.0]
+    debug_logging:    false
+    throttle_scans:   1
+
+    # ── Stack size (needed for Ceres on some systems) ─────────────
+    stack_size_to_use: 40000000

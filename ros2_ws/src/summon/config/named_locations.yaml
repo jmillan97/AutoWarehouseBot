@@ -1,0 +1,62 @@
+# named_locations.yaml
+# =====================
+# AutoWarehouseBot — summon named location registry
+# Place at: ros2_ws/src/wb_summon/config/named_locations.yaml
+#
+# HOW TO FILL THIS IN:
+# ====================
+# 1. Complete the SLAM mapping phase and save your map
+# 2. Open the map in RViz (load it with nav2_bringup.launch.py)
+# 3. Hover over each desired location in RViz — the bottom bar shows (x, y)
+# 4. Replace the placeholder coordinates below with your real values
+# 5. theta is the heading the robot should face when it arrives (radians)
+#    0.0     = facing +X (east on map)
+#    1.5708  = facing +Y (north on map)
+#    3.1416  = facing -X (west on map)
+#    -1.5708 = facing -Y (south on map)
+#
+# COORDINATE TIPS:
+# ================
+# - Map origin (0,0) is wherever the robot was when you started SLAM
+# - Keep the robot 0.5m+ away from walls at each named location
+#   (the inflation layer will reject goals too close to obstacles)
+# - The 'home' location should be where the robot powers on / charges
+
+named_locations:
+
+  # ── Home / charging dock ──────────────────────────────────────
+  # WHERE THE ROBOT STARTS. Set initial_pose params in summon_node
+  # to match these coordinates exactly.
+  home:
+    x: 0.0         # [FILL IN after mapping]
+    y: 0.0         # [FILL IN after mapping]
+    theta: 0.0     # [FILL IN after mapping]
+
+  # ── Delivery stops ────────────────────────────────────────────
+  # Add one entry per shelf / delivery location in your warehouse.
+  # Name them whatever makes sense for your demo.
+  shelf_a:
+    x: 0.0         # [FILL IN after mapping]
+    y: 0.0         # [FILL IN after mapping]
+    theta: 0.0
+
+  shelf_b:
+    x: 0.0         # [FILL IN after mapping]
+    y: 0.0         # [FILL IN after mapping]
+    theta: 0.0
+
+  shelf_c:
+    x: 0.0         # [FILL IN after mapping]
+    y: 0.0         # [FILL IN after mapping]
+    theta: 0.0
+
+  # ── Demo waypoints (rename as needed) ─────────────────────────
+  waypoint_1:
+    x: 0.0         # [FILL IN after mapping]
+    y: 0.0         # [FILL IN after mapping]
+    theta: 0.0
+
+  waypoint_2:
+    x: 0.0         # [FILL IN after mapping]
+    y: 0.0         # [FILL IN after mapping]
+    theta: 0.0
