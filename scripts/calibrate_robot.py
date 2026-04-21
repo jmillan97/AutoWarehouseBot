@@ -255,7 +255,7 @@ rclpy.init()
 node = rclpy.create_node("calibration_single_publisher")
 publisher = node.create_publisher(Int32, {topic!r}, 10)
 
-deadline = time.time() + 3.0
+deadline = time.time() + 10.0
 while publisher.get_subscription_count() < 1 and time.time() < deadline:
     rclpy.spin_once(node, timeout_sec=0.1)
 
@@ -279,7 +279,7 @@ node.destroy_node()
 rclpy.shutdown()
 """
         command = f"python3 -c {shlex.quote(code)}"
-        self.run(command, timeout=7.0, check=not self.dry_run)
+        self.run(command, timeout=15.0, check=not self.dry_run)
 
 
 def parse_data_int(text: str) -> int | None:
