@@ -53,6 +53,7 @@ class SerialBridgePy(Node):
         self.declare_parameter("rotation_scale", 1.5)
         self.declare_parameter("use_drive_lr_linear", True)
         self.declare_parameter("linear_balance_kp", 0.4)
+        self.declare_parameter("linear_steer_bias", 6.0)
         self.declare_parameter("command_timeout_s", 15.0)
         self.declare_parameter("command_rate_hz", 10.0)
 
@@ -67,6 +68,7 @@ class SerialBridgePy(Node):
         self.rotation_scale = float(self.get_parameter("rotation_scale").value)
         self.use_drive_lr_linear = bool(self.get_parameter("use_drive_lr_linear").value)
         self.linear_balance_kp = float(self.get_parameter("linear_balance_kp").value)
+        self.linear_steer_bias = float(self.get_parameter("linear_steer_bias").value)
         self.command_timeout_s = float(self.get_parameter("command_timeout_s").value)
         self.command_rate_hz = float(self.get_parameter("command_rate_hz").value)
 
@@ -236,8 +238,8 @@ class SerialBridgePy(Node):
             if self.use_drive_lr_linear:
                 tick_error = dleft - dright
                 correction = self.linear_balance_kp * tick_error
-                left_pwm = (self.command_speed - correction) * m.direction
-                right_pwm = (self.command_speed + correction) * m.direction
+                left_pwm = (self.command_speed - correction + self.linear_steer_bias) * m.direction
+                right_pwm = (self.command_speed + correction - self.linear_steer_bias) * m.direction
                 self._send_drive_lr(left_pwm, right_pwm)
             else:
                 self._send_cmd("w" if m.direction > 0 else "s")

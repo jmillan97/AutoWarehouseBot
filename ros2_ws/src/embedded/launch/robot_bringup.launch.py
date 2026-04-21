@@ -137,6 +137,7 @@ def generate_launch_description():
             'rotation_scale': 1.5,
             'use_drive_lr_linear': True,
             'linear_balance_kp': 0.4,
+            'linear_steer_bias': 6.0,
             'use_sim_time': use_sim_time,
         }]
     )

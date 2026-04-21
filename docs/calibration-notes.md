@@ -327,3 +327,17 @@
 - Interpretation: `/left_ticks` and `/right_ticks` were swapped. The balancing loop was using the wrong encoder labels, so increasing `linear_balance_kp` could make drift worse.
 - Applied next action: parse `E:` as `right,left`, so ROS `/left_ticks` now comes from `ticksRL` and `/right_ticks` comes from `ticksFR`. Reset `linear_balance_kp` to `0.4` for the first corrected-label validation.
 - Next validation: restart Pi bringup and rerun the same 200 mm distance trial.
+
+## 2026-04-21: Corrected Encoder Labels Validation, 200 mm
+
+- Log folder: `calibration_logs/20260421_015403_distance`
+- Active `distance_scale`: `0.9523809523809523`.
+- Active `linear_balance_kp`: `0.4`.
+- Commanded distance: 200 mm.
+- Measured physical distance: 200 mm.
+- Physical drift: about 30 mm left.
+- Encoder ticks after label correction: left +178, right +172.
+- Odom start/end snapshots are not trusted for distance on this run because the pose jumped several meters, but tape distance and encoder deltas are usable.
+- Interpretation: distance magnitude remains correct and encoder labels now look plausible, but physical drift is still left even when encoder ticks are close. Tick balancing alone is not enough for straightness on this floor/drive geometry.
+- Applied next action: added `linear_steer_bias = 6.0`. Positive bias raises left-side PWM and lowers right-side PWM during linear moves, nudging the robot right to counter left drift. Kept `linear_balance_kp = 0.4`.
+- Next validation: restart Pi bringup and rerun the 200 mm trial. Watch whether drift drops below 30 mm while distance stays near 200 mm.
