@@ -516,3 +516,19 @@
 - Interpretation: PWM 80 clears the motor deadband, so this is usable rotation-scale data. Physical rotation overshot by about 50%.
 - Applied next action: set `rotation_scale = 0.6666666666666666`, keeping `rotation_speed = 80`.
 - Next validation: restart Pi bringup and rerun one isolated +90 deg trial.
+
+## 2026-04-21: Rotation Scale 0.6667 Validation, +90 deg
+
+- Log folder: `calibration_logs/20260421_111135_rotation`
+- Active `rotation_scale`: `0.6666666666666666`.
+- Active `rotation_speed`: `80`.
+- Active `rotation_command_interval_s`: `0.75`.
+- Commanded rotation: +90 deg.
+- Measured physical rotation: about 30 deg.
+- Operator note: 30 deg to the right.
+- Encoder ticks: left 99 -> 1, right 925 -> 1038.
+- Tick deltas: left -98, right +113.
+- Pi bridge log showed `target_ticks=94`, `Motion complete traveled=99`, followed immediately by `ACK: DRIVE_LR 0,0`.
+- Interpretation: stop behavior is clean now, but rotation response is nonlinear around short tick targets. Scale 1.0 produced about 135 deg, while scale 0.6667 produced about 30 deg.
+- Applied next action: set `rotation_scale = 0.86` by interpolating between the 1.0 and 0.6667 trials for a target near 90 deg. Kept `rotation_speed = 80`.
+- Next validation: restart Pi bringup and rerun one isolated +90 deg trial.
