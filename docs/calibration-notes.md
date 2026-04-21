@@ -240,3 +240,33 @@
 - Final physical heading: about 60 deg left of starting heading.
 - Interpretation: individual distance and turn commands are usable, but open-loop square driving still accumulates too much heading/pose error. The repeated left drift and large final heading error point toward needing heading correction during forward motion and better continuous yaw logging.
 - Next action: implement a single `square` calibration command that streams `/odom`, `/imu/data`, and ticks continuously across the full path, then use that data to tune heading correction/EKF rather than relying on separate start/end snapshots.
+
+## 2026-04-21: Lightweight Square Drift Test, 400 mm Sides
+
+- Log folder: `calibration_logs/20260421_001504_square`
+- Sequence: four 400 mm forward moves and four +90 deg left turns.
+- Pause after each segment: 6.0 s.
+- Physical final pose note: left corner tire was used as the reference point; final position ended about 13 cm right and 38 cm forward of start.
+- Interpreted final physical error: X about +380 mm forward, Y about -130 mm right, heading about +60 deg left.
+- Script numeric final fields were left as 0, so the notes field is the trusted physical measurement.
+- Odom start pose: x 0.657 m, y 0.284 m, yaw -108.89 deg.
+- Odom end pose: x 0.823 m, y -0.032 m, yaw 143.17 deg.
+- Odom delta: x +165.9 mm, y -315.7 mm, yaw -107.94 deg using wrapped start/end yaw.
+- IMU yaw: -30.21 deg -> -31.38 deg, delta about -1.17 deg.
+- Interpretation: repeating the square with automatic pauses still leaves a large final pose error. Since individual 400 mm and 90/180 deg commands are accurate, open-loop square driving is dominated by systematic drift/heading accumulation rather than command scale.
+- Next action: add heading correction during forward motion or apply an open-loop drift compensation term; EKF alone cannot fix the physical path error.
+
+## 2026-04-21: Independent Side Drive Patch
+
+- Added Arduino serial command: `drive_lr:<left_pwm>,<right_pwm>`.
+- Signed PWM convention: positive drives that side forward; negative drives that side backward.
+- Legacy commands remain available: `w`, `s`, `q`, `e`, `x`, `speed:`.
+- Updated `serial_bridge_py` to use `drive_lr` for linear `/move_distance_mm` commands only.
+- Rotation commands remain on the calibrated legacy `q/e` path.
+- Added encoder tick balancing during linear moves:
+  - `tick_error = left_delta - right_delta`
+  - `correction = linear_balance_kp * tick_error`
+  - `left_pwm = command_speed - correction`
+  - `right_pwm = command_speed + correction`
+- Initial `linear_balance_kp`: 0.4.
+- Next validation: upload firmware, restart Pi bringup, then run 400 mm distance and square tests to see whether left drift decreases.

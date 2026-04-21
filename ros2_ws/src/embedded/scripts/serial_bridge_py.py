@@ -50,6 +50,8 @@ class SerialBridgePy(Node):
         self.declare_parameter("encoder_cpr", 2.0)
         self.declare_parameter("gear_ratio", 108.0)
         self.declare_parameter("rotation_scale", 1.5)
+        self.declare_parameter("use_drive_lr_linear", True)
+        self.declare_parameter("linear_balance_kp", 0.4)
         self.declare_parameter("command_timeout_s", 15.0)
         self.declare_parameter("command_rate_hz", 10.0)
 
@@ -61,6 +63,8 @@ class SerialBridgePy(Node):
         self.encoder_cpr = float(self.get_parameter("encoder_cpr").value)
         self.gear_ratio = float(self.get_parameter("gear_ratio").value)
         self.rotation_scale = float(self.get_parameter("rotation_scale").value)
+        self.use_drive_lr_linear = bool(self.get_parameter("use_drive_lr_linear").value)
+        self.linear_balance_kp = float(self.get_parameter("linear_balance_kp").value)
         self.command_timeout_s = float(self.get_parameter("command_timeout_s").value)
         self.command_rate_hz = float(self.get_parameter("command_rate_hz").value)
 
@@ -140,6 +144,11 @@ class SerialBridgePy(Node):
 
     def _send_speed(self) -> None:
         self._write_serial(f"speed:{self.command_speed}\n")
+
+    def _send_drive_lr(self, left_pwm: int, right_pwm: int) -> None:
+        left_pwm = max(-255, min(255, int(round(left_pwm))))
+        right_pwm = max(-255, min(255, int(round(right_pwm))))
+        self._write_serial(f"drive_lr:{left_pwm},{right_pwm}\n")
 
     def on_move_mm(self, msg: Int32) -> None:
         if msg.data == 0:
@@ -222,7 +231,14 @@ class SerialBridgePy(Node):
                 self._motion.speed_sent = True
 
         if m.mode == "linear":
-            self._send_cmd("w" if m.direction > 0 else "s")
+            if self.use_drive_lr_linear:
+                tick_error = dleft - dright
+                correction = self.linear_balance_kp * tick_error
+                left_pwm = (self.command_speed - correction) * m.direction
+                right_pwm = (self.command_speed + correction) * m.direction
+                self._send_drive_lr(left_pwm, right_pwm)
+            else:
+                self._send_cmd("w" if m.direction > 0 else "s")
         else:
             self._send_cmd("e" if m.direction > 0 else "q")
 

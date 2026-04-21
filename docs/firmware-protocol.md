@@ -8,6 +8,7 @@ Movement primitives are implemented in `serial_bridge` on the Pi.
 - Arduino firmware accepts legacy serial commands:
   - `speed:<0-255>`
   - `w`, `a`, `s`, `d`, `q`, `e`, `x`, `r`
+  - `drive_lr:<left_pwm>,<right_pwm>`
 - Arduino publishes encoder lines:
   - `E:<left_ticks>,<right_ticks>`
 - `serial_bridge` translates ROS movement topics into those legacy commands.
@@ -26,12 +27,29 @@ Movement primitives are implemented in `serial_bridge` on the Pi.
 1. Receives `/move_distance_mm` or `/rotate_angle_deg`
 2. Converts target (mm/deg) to encoder ticks using wheel model params
 3. Sends one `speed:<value>` command
-4. Repeatedly sends legacy motion command (`w/s/q/e`) to keep watchdog alive
-5. Monitors encoder delta from `E:left,right`
-6. Sends `x` stop when target ticks reached (or timeout)
+4. For linear moves, sends `drive_lr:<left_pwm>,<right_pwm>` with encoder tick balancing
+5. For rotation moves, repeatedly sends legacy motion command (`q/e`) to keep watchdog alive
+6. Monitors encoder delta from `E:left,right`
+7. Sends `x` stop when target ticks reached (or timeout)
 
-This keeps firmware unchanged while giving deterministic movement commands from
-ROS.
+This keeps legacy firmware commands available while allowing the Pi to correct
+straight-line left/right drift through independent side PWM.
+
+## Independent Side Drive
+
+`drive_lr:<left_pwm>,<right_pwm>` accepts signed PWM values in `-255..255`.
+
+- Positive values drive that side forward.
+- Negative values drive that side backward.
+- `drive_lr:0,0` stops both sides.
+
+Examples:
+
+```text
+drive_lr:90,90
+drive_lr:80,95
+drive_lr:-90,90
+```
 
 ## Why This Model
 

@@ -134,6 +134,8 @@ def generate_launch_description():
             'encoder_cpr': 2.0,
             'gear_ratio': 108.0,
             'rotation_scale': 1.5,
+            'use_drive_lr_linear': True,
+            'linear_balance_kp': 0.4,
             'use_sim_time': use_sim_time,
         }]
     )

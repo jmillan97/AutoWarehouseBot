@@ -191,6 +191,25 @@ void loop() {
         long deg = command.substring(11).toInt();
         beginRotateMove(deg);
       }
+      // 1d. Independent side drive: "drive_lr:<left_pwm>,<right_pwm>"
+      // Signed PWM range is -255..255. Positive drives that side forward.
+      else if (command.startsWith("drive_lr:")) {
+        moveActive = false;
+        moveMode = 0;
+        String payload = command.substring(9);
+        int comma = payload.indexOf(',');
+        if (comma > 0) {
+          int leftPwm = payload.substring(0, comma).toInt();
+          int rightPwm = payload.substring(comma + 1).toInt();
+          driveLR(leftPwm, rightPwm);
+          Serial.print("ACK: DRIVE_LR ");
+          Serial.print(constrain(leftPwm, -255, 255));
+          Serial.print(",");
+          Serial.println(constrain(rightPwm, -255, 255));
+        } else {
+          Serial.println("ACK: DRIVE_LR_BAD_FORMAT");
+        }
+      }
       // 2. Legacy manual commands (kept for manual bench testing)
       else if (command == "w") { moveActive = false; moveMode = 0; driveAllForward(robotSpeed); }
       else if (command == "s") { moveActive = false; moveMode = 0; driveAllBackward(robotSpeed); }
@@ -263,6 +282,25 @@ void rotateCounterclockwise(int s) {
   setMotor(M3_DIR, M3_PWM, s, HIGH);
   setMotor(M2_DIR, M2_PWM, s, LOW);
   setMotor(M4_DIR, M4_PWM, s, LOW);
+}
+
+void driveRightSide(int pwm) {
+  bool forward = pwm >= 0;
+  setMotor(M1_DIR, M1_PWM, pwm, forward ? HIGH : LOW);
+  setMotor(M3_DIR, M3_PWM, pwm, forward ? HIGH : LOW);
+}
+
+void driveLeftSide(int pwm) {
+  bool forward = pwm >= 0;
+  setMotor(M2_DIR, M2_PWM, pwm, forward ? HIGH : LOW);
+  setMotor(M4_DIR, M4_PWM, pwm, forward ? HIGH : LOW);
+}
+
+void driveLR(int leftPwm, int rightPwm) {
+  leftPwm = constrain(leftPwm, -255, 255);
+  rightPwm = constrain(rightPwm, -255, 255);
+  driveLeftSide(leftPwm);
+  driveRightSide(rightPwm);
 }
 
 void setMotor(int dirPin, int pwmPin, int s, bool logic) {
