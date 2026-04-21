@@ -170,6 +170,11 @@ def generate_launch_description():
             'imu_frame_id': 'imu_link',
             'publish_rate': 50,
             'ini_file': '/home/ece_441/RTIMULib.ini',
+            # Conservative starting values; replace with measured calibration data.
+            'orientation_covariance_diagonal': [0.05, 0.05, 0.10],
+            'angular_velocity_covariance_diagonal': [0.001, 0.001, 0.001],
+            'linear_acceleration_covariance_diagonal': [0.01, 0.01, 0.01],
+            'magnetic_field_covariance_diagonal': [0.001, 0.001, 0.001],
         }]
     )
 

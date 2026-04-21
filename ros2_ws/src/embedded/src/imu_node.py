@@ -25,8 +25,6 @@ import sys
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, MagneticField
-from geometry_msgs.msg import Vector3
-import math
 
 try:
     import RTIMU
@@ -43,10 +41,30 @@ class ImuNode(Node):
         self.declare_parameter('imu_frame_id', 'imu_link')
         self.declare_parameter('publish_rate', 50)
         self.declare_parameter('ini_file', '/home/ece_441/RTIMULib.ini')
+        self.declare_parameter('orientation_covariance_diagonal', [0.05, 0.05, 0.10])
+        self.declare_parameter('angular_velocity_covariance_diagonal', [0.001, 0.001, 0.001])
+        self.declare_parameter('linear_acceleration_covariance_diagonal', [0.01, 0.01, 0.01])
+        self.declare_parameter('magnetic_field_covariance_diagonal', [0.001, 0.001, 0.001])
 
         self.frame_id = self.get_parameter('imu_frame_id').value
         self.rate     = self.get_parameter('publish_rate').value
         ini_file      = self.get_parameter('ini_file').value
+        self.orientation_covariance = self._diag_covariance(
+            self.get_parameter('orientation_covariance_diagonal').value,
+            fallback=[0.05, 0.05, 0.10],
+        )
+        self.angular_velocity_covariance = self._diag_covariance(
+            self.get_parameter('angular_velocity_covariance_diagonal').value,
+            fallback=[0.001, 0.001, 0.001],
+        )
+        self.linear_acceleration_covariance = self._diag_covariance(
+            self.get_parameter('linear_acceleration_covariance_diagonal').value,
+            fallback=[0.01, 0.01, 0.01],
+        )
+        self.magnetic_field_covariance = self._diag_covariance(
+            self.get_parameter('magnetic_field_covariance_diagonal').value,
+            fallback=[0.001, 0.001, 0.001],
+        )
 
         # ---- RTIMULib setup ----
         ini_dir  = os.path.dirname(ini_file)
@@ -76,6 +94,20 @@ class ImuNode(Node):
         timer_period  = max(1.0 / self.rate, poll_interval)
         self.create_timer(timer_period, self.publish_imu)
 
+    def _diag_covariance(self, values, fallback):
+        try:
+            diag = [float(v) for v in values]
+        except TypeError:
+            diag = list(fallback)
+        if len(diag) != 3:
+            self.get_logger().warn(f'Expected 3 covariance diagonal values, got {diag}; using {fallback}')
+            diag = list(fallback)
+        return [
+            diag[0], 0.0,     0.0,
+            0.0,     diag[1], 0.0,
+            0.0,     0.0,     diag[2],
+        ]
+
     def publish_imu(self):
         if not self.imu.IMURead():
             return
@@ -89,18 +121,13 @@ class ImuNode(Node):
         imu_msg.header.frame_id = self.frame_id
 
         # Orientation (fused quaternion from RTIMULib)
-        if data.get('fusionPoseValid', False) and 'quaternion' in data:
-            q = data['quaternion']
+        if data.get('fusionQPoseValid', False) and 'fusionQPose' in data:
+            q = data['fusionQPose']
             imu_msg.orientation.x = q.x()
             imu_msg.orientation.y = q.y()
             imu_msg.orientation.z = q.z()
             imu_msg.orientation.w = q.scalar()
-            # Low covariance — RTIMULib fusion is good
-            imu_msg.orientation_covariance = [
-                0.01, 0.0,  0.0,
-                0.0,  0.01, 0.0,
-                0.0,  0.0,  0.01
-            ]
+            imu_msg.orientation_covariance = self.orientation_covariance
         else:
             # Orientation not valid yet
             imu_msg.orientation_covariance[0] = -1.0
@@ -111,11 +138,7 @@ class ImuNode(Node):
             imu_msg.angular_velocity.x = gyro[0]
             imu_msg.angular_velocity.y = gyro[1]
             imu_msg.angular_velocity.z = gyro[2]
-            imu_msg.angular_velocity_covariance = [
-                0.001, 0.0,   0.0,
-                0.0,   0.001, 0.0,
-                0.0,   0.0,   0.001
-            ]
+            imu_msg.angular_velocity_covariance = self.angular_velocity_covariance
         else:
             imu_msg.angular_velocity_covariance[0] = -1.0
 
@@ -125,11 +148,7 @@ class ImuNode(Node):
             imu_msg.linear_acceleration.x = accel[0] * 9.81
             imu_msg.linear_acceleration.y = accel[1] * 9.81
             imu_msg.linear_acceleration.z = accel[2] * 9.81
-            imu_msg.linear_acceleration_covariance = [
-                0.01, 0.0,  0.0,
-                0.0,  0.01, 0.0,
-                0.0,  0.0,  0.01
-            ]
+            imu_msg.linear_acceleration_covariance = self.linear_acceleration_covariance
         else:
             imu_msg.linear_acceleration_covariance[0] = -1.0
 
@@ -145,11 +164,7 @@ class ImuNode(Node):
             mag_msg.magnetic_field.x = compass[0] * 1e-6
             mag_msg.magnetic_field.y = compass[1] * 1e-6
             mag_msg.magnetic_field.z = compass[2] * 1e-6
-            mag_msg.magnetic_field_covariance = [
-                0.001, 0.0,   0.0,
-                0.0,   0.001, 0.0,
-                0.0,   0.0,   0.001
-            ]
+            mag_msg.magnetic_field_covariance = self.magnetic_field_covariance
             self.mag_pub.publish(mag_msg)
 
 
