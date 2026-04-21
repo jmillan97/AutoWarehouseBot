@@ -298,6 +298,15 @@ def parse_operator_command(text: str):
     raise ValueError(f'Unsupported command: {text}')
 
 
+def parse_optional_int_field(text: str, label: str) -> int:
+    value = text.strip()
+    if not value:
+        return 0
+    if not re.fullmatch(r'[+-]?\d+', value):
+        raise ValueError(f'{label} must be a whole number')
+    return int(value)
+
+
 class OperatorConsoleApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
@@ -314,9 +323,11 @@ class OperatorConsoleApp:
         self.log_lines = []
         self.video_status_var = tk.StringVar(value='Video source: waiting')
         self.scan_status_var = tk.StringVar(value='LiDAR: waiting')
+        self.distance_mm_var = tk.StringVar()
+        self.rotate_deg_var = tk.StringVar()
 
         self._build_ui()
-        self._append_log('Operator console ready. Type "help" for command syntax.')
+        self._append_log('Operator console ready. Enter one number and press Send.')
         self.root.after(50, self._drain_ui_queue)
         self.root.after(80, self._refresh_video)
         self.root.after(100, self._refresh_scan)
@@ -361,43 +372,50 @@ class OperatorConsoleApp:
             row=1, column=0, sticky='w', padx=8, pady=(0, 8)
         )
 
-        controls = ttk.LabelFrame(self.root, text='Movement Console')
+        controls = ttk.LabelFrame(self.root, text='Movement Controls')
         controls.grid(row=1, column=0, sticky='nsew', padx=10, pady=(6, 10))
         controls.columnconfigure(0, weight=1)
-        controls.rowconfigure(2, weight=1)
+        controls.rowconfigure(3, weight=1)
 
-        quick_frame = ttk.Frame(controls)
-        quick_frame.grid(row=0, column=0, sticky='ew', padx=8, pady=(8, 4))
-        for idx in range(4):
-            quick_frame.columnconfigure(idx, weight=1)
+        command_frame = ttk.Frame(controls)
+        command_frame.grid(row=0, column=0, sticky='ew', padx=8, pady=(8, 4))
+        command_frame.columnconfigure(1, weight=1)
+        command_frame.columnconfigure(4, weight=1)
 
-        quick_buttons = [
-            ('Forward 1 ft', lambda: self._send_move_feet(1.0)),
-            ('Back 1 ft', lambda: self._send_move_feet(-1.0)),
-            ('Left 90', lambda: self._send_rotate_deg(-90)),
-            ('Right 90', lambda: self._send_rotate_deg(90)),
-        ]
-        for idx, (label, callback) in enumerate(quick_buttons):
-            ttk.Button(quick_frame, text=label, command=callback).grid(
-                row=0, column=idx, sticky='ew', padx=4, pady=4
-            )
+        ttk.Label(command_frame, text='Distance (mm)').grid(
+            row=0, column=0, sticky='w', padx=(0, 6), pady=4
+        )
+        self.distance_entry = ttk.Entry(command_frame, textvariable=self.distance_mm_var, width=12)
+        self.distance_entry.grid(row=0, column=1, sticky='ew', padx=(0, 12), pady=4)
+        ttk.Label(command_frame, text='forward + / back -').grid(
+            row=0, column=2, sticky='w', padx=(0, 18), pady=4
+        )
 
-        entry_frame = ttk.Frame(controls)
-        entry_frame.grid(row=1, column=0, sticky='ew', padx=8, pady=4)
-        entry_frame.columnconfigure(0, weight=1)
+        ttk.Label(command_frame, text='Rotate (deg)').grid(
+            row=0, column=3, sticky='w', padx=(0, 6), pady=4
+        )
+        self.rotate_entry = ttk.Entry(command_frame, textvariable=self.rotate_deg_var, width=12)
+        self.rotate_entry.grid(row=0, column=4, sticky='ew', padx=(0, 12), pady=4)
+        ttk.Label(command_frame, text='right + / left -').grid(
+            row=0, column=5, sticky='w', padx=(0, 0), pady=4
+        )
 
-        self.command_var = tk.StringVar()
-        self.command_entry = ttk.Entry(entry_frame, textvariable=self.command_var)
-        self.command_entry.grid(row=0, column=0, sticky='ew', padx=(0, 6))
-        self.command_entry.bind('<Return>', self._on_submit)
+        button_frame = ttk.Frame(controls)
+        button_frame.grid(row=1, column=0, sticky='ew', padx=8, pady=4)
+        button_frame.columnconfigure(0, weight=0)
+        button_frame.columnconfigure(1, weight=0)
+        button_frame.columnconfigure(2, weight=1)
 
-        ttk.Button(entry_frame, text='Send', command=self._on_submit).grid(
-            row=0, column=1, sticky='e'
+        ttk.Button(button_frame, text='Send', command=self._on_send_numeric).grid(
+            row=0, column=0, sticky='w', padx=(0, 6), pady=4
+        )
+        ttk.Button(button_frame, text='Clear', command=self._clear_numeric_fields).grid(
+            row=0, column=1, sticky='w', padx=(0, 12), pady=4
         )
 
         ttk.Label(
             controls,
-            text='Try: forward 3 ft, back 250 mm, left 90 deg, rotate -45 deg',
+            text='Enter only one nonzero value per send to avoid overlapping motion commands.',
         ).grid(row=2, column=0, sticky='w', padx=8, pady=(0, 6))
 
         self.log_widget = tk.Text(controls, height=12, wrap='word', state='disabled')
@@ -407,34 +425,33 @@ class OperatorConsoleApp:
         scrollbar.grid(row=3, column=1, sticky='ns', pady=(0, 8))
         self.log_widget.configure(yscrollcommand=scrollbar.set)
 
-        self.command_entry.focus_set()
-
-    def _send_move_feet(self, feet: float) -> None:
-        mm = parse_distance_to_mm(abs(feet), 'ft')
-        if feet < 0:
-            mm = -mm
-        self.node.publish_move_mm(mm)
+        self.distance_entry.bind('<Return>', self._on_send_numeric)
+        self.rotate_entry.bind('<Return>', self._on_send_numeric)
+        self.distance_entry.focus_set()
 
     def _send_rotate_deg(self, deg: int) -> None:
         self.node.publish_rotate_deg(deg)
 
-    def _on_submit(self, _event=None) -> None:
-        raw = self.command_var.get().strip()
-        if not raw:
-            return
-        self.command_var.set('')
-        self._append_log(f'> {raw}')
+    def _clear_numeric_fields(self) -> None:
+        self.distance_mm_var.set('')
+        self.rotate_deg_var.set('')
+        self.distance_entry.focus_set()
+
+    def _on_send_numeric(self, _event=None) -> None:
         try:
-            parsed = parse_operator_command(raw)
-            if parsed is None:
-                return
-            command, value = parsed
-            if command == 'help':
-                self._append_log(build_help_text())
-            elif command == 'move_mm':
-                self.node.publish_move_mm(int(value))
-            elif command == 'rotate_deg':
-                self.node.publish_rotate_deg(int(value))
+            distance_mm = parse_optional_int_field(self.distance_mm_var.get(), 'Distance')
+            rotate_deg = parse_optional_int_field(self.rotate_deg_var.get(), 'Rotate')
+            if distance_mm == 0 and rotate_deg == 0:
+                raise ValueError('Enter a nonzero distance or rotation')
+            if distance_mm != 0 and rotate_deg != 0:
+                raise ValueError('Send distance or rotation separately, not both at once')
+
+            if distance_mm != 0:
+                self.node.publish_move_mm(distance_mm)
+                self.distance_mm_var.set('')
+            else:
+                self.node.publish_rotate_deg(rotate_deg)
+                self.rotate_deg_var.set('')
         except Exception as exc:
             self._append_log(f'Error: {exc}')
 
