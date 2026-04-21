@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 import termios
 import threading
 import time
@@ -291,22 +292,29 @@ class SerialBridgePy(Node):
         if line.startswith("ACK:"):
             self.get_logger().info(f"Arduino: {line}")
             return
-        if not line.startswith("E:"):
+        if "E:" not in line:
             self.get_logger().debug(f"Arduino: {line}")
             return
 
-        payload = line[2:]
-        if "," not in payload:
+        encoder_frames = re.findall(r"E:([+-]?\d+),([+-]?\d+)", line)
+        if not encoder_frames:
             self.get_logger().warn(f"Malformed encoder line: {line}")
             return
+
+        if len(encoder_frames) > 1 or not re.fullmatch(r"E:[+-]?\d+,[+-]?\d+", line):
+            self.get_logger().warn(f"Recovered encoder frame(s) from noisy line: {line}")
+
+        for right_s, left_s in encoder_frames:
+            self._publish_encoder_ticks(left_s, right_s)
+
+    def _publish_encoder_ticks(self, left_s: str, right_s: str) -> None:
         # Firmware prints E:<front_right_ticks>,<rear_left_ticks>.
         # Publish them under robot-side names for odom and balancing.
-        right_s, left_s = payload.split(",", 1)
         try:
             left = int(left_s)
             right = int(right_s)
         except ValueError:
-            self.get_logger().warn(f"Parse error on encoder line: {line}")
+            self.get_logger().warn(f"Parse error on encoder values: left={left_s} right={right_s}")
             return
 
         with self._lock:

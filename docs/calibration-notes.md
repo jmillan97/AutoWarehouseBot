@@ -586,3 +586,22 @@
 - Interpretation: this result does not fit the previous bracket cleanly. Scale 0.895 is close to 0.93, but the encoder travel was much lower than the 0.93 run, suggesting run-to-run rotation variance, floor traction, starting load, or stop/coast timing is dominating the scale estimate.
 - Applied next action: hold `rotation_scale = 0.895` and repeat one isolated +90 deg trial before changing constants again.
 - Next validation: rerun the same isolated +90 deg trial without changing code.
+
+## 2026-04-21: Rotation Scale 0.895 Repeat, +90 deg
+
+- Log folder: `calibration_logs/20260421_113022_rotation`
+- Active `rotation_scale`: `0.895`.
+- Active `rotation_speed`: `80`.
+- Active `rotation_command_interval_s`: `0.75`.
+- Commanded rotation: +90 deg.
+- Measured physical rotation: about 45 deg.
+- Operator note: 45 deg.
+- Direction was marked correct.
+- Encoder ticks: left -522 -> -667, right 1627 -> 1798.
+- Tick deltas: left -145, right +171.
+- Odom yaw delta: about +100.3 deg.
+- IMU yaw delta: about +9.3 deg.
+- Operator observed a bridge warning: `Parse error on encoder line: E:1627,-E:1627,-522`.
+- Interpretation: two consecutive 0.895 trials produced about 45 deg with similar tick deltas, but the noisy serial line means the bridge may be dropping usable encoder updates. Before changing rotation scale again, harden encoder parsing so glued encoder frames do not poison motion completion.
+- Applied next action: update `serial_bridge_py` to recover valid encoder frames from noisy lines containing embedded `E:` frames.
+- Next validation: restart Pi bringup and rerun one isolated +90 deg trial at the same `rotation_scale = 0.895`.
