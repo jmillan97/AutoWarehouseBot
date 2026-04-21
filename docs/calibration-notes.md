@@ -389,3 +389,23 @@
 - Interpretation: straightness is good at 400 mm, but physical distance is about 6.25% short. Odom is closer to commanded distance than the tape measurement, but tape is the calibration reference.
 - Applied next action: nudged `distance_scale` to `1.0158730158730158` (`0.95238 * 400 / 375`) while keeping `linear_steer_bias = -6.0` and `linear_balance_kp = 0.4`.
 - Next validation: rerun a 400 mm trial. If it lands near 400 mm with low drift, keep these values.
+
+## 2026-04-21: Forward Calibration Accepted, 400 mm
+
+- Log folder: `calibration_logs/20260421_022036_distance`
+- Active `distance_scale`: `1.0158730158730158`.
+- Active `linear_balance_kp`: `0.4`.
+- Active `linear_steer_bias`: `-6.0`.
+- Commanded distance: 400 mm.
+- Measured physical distance: 403 mm.
+- Physical drift: about 15 mm right.
+- Encoder ticks: left 0 -> 360, right 0 -> 371.
+- Tick deltas: left +360, right +371.
+- Odom distance: about 425.2 mm.
+- Odom yaw change: about +3.5 deg.
+- Interpretation: physical distance error is only +0.75%, and lateral drift is acceptable for a single 400 mm open-loop segment. Stop tuning straight-line distance on single segments for now.
+- Current accepted forward values:
+  - `distance_scale = 1.0158730158730158`
+  - `linear_balance_kp = 0.4`
+  - `linear_steer_bias = -6.0`
+- Next action: run square/path validation to see how the calibrated straight segments and existing rotation calibration compose over multiple moves.
