@@ -677,3 +677,26 @@
 - Interpretation: the spinout guard fixed the dangerous failure mode. Wheel deltas are now balanced and stops are clean, but physical rotation still undershoots. The +30 deg trial gives a safer scale correction than jumping from the +90 deg undershoot alone.
 - Applied next action: set `rotation_scale = 1.35`, based on the +30 deg result (`0.895 * 30 / 20`). Keep `rotation_speed = 80`.
 - Next validation: restart bringup and run one isolated +30 deg trial first. If it lands near 30 deg without imbalance warnings, rerun +90 deg.
+
+## 2026-04-21: Rotation Scale 1.35 Validation, Positive Turns
+
+- Log folders:
+  - `calibration_logs/20260421_115752_rotation`
+  - `calibration_logs/20260421_115845_rotation`
+- Bringup was running with `enable_camera:=false`.
+- Active `rotation_scale`: `1.35`.
+- Active `rotation_speed`: `80`.
+- Active `rotation_command_interval_s`: `0.75`.
+- +30 deg test:
+  - Measured physical rotation: about 30 deg.
+  - Encoder ticks: left -3078 -> -3141, right 4472 -> 4543.
+  - Tick deltas: left -63, right +71.
+  - Operator note: looks good, no skid.
+- +90 deg test:
+  - Operator note: about 87 deg, good enough.
+  - Encoder ticks: left -3141 -> -3328, right 4543 -> 4751.
+  - Tick deltas: left -187, right +208.
+  - No skid noted.
+- Interpretation: `rotation_scale = 1.35` is acceptable for the currently tested positive turn direction. Tick deltas are balanced and the guarded stop behavior is clean.
+- Applied next action: keep `rotation_scale = 1.35` and start testing the opposite turn direction.
+- Next validation: run isolated negative turns, starting with -30 deg, then -90 deg if the small turn is clean.
