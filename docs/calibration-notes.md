@@ -490,3 +490,11 @@
 - Interpretation: scale 2.0 is too high, and rotation still has enough stop latency/coast that high speed magnifies overshoot. The direction is usable, but calibration should continue conservatively.
 - Applied next action: set `rotation_scale = 1.2` and lower `rotation_speed = 40`, keeping `rotation_command_interval_s = 0.75`.
 - Next validation: restart Pi bringup and rerun one isolated +90 deg trial.
+
+## 2026-04-21: Rotation Motor Deadband Check
+
+- Low-level direct serial check showed `drive_lr:0,40` reached the Arduino but barely moved the right encoder, only a few ticks.
+- Operator checked higher PWM values and confirmed the wheels move at higher PWM.
+- Interpretation: `rotation_speed = 40` is too close to motor deadband for trustworthy rotation calibration.
+- Applied next action: set `rotation_speed = 80` and reset `rotation_scale = 1.0` for the next clean isolated +90 deg calibration trial.
+- Keep `rotation_command_interval_s = 0.75` and the explicit `drive_lr:0,0` stop behavior.
