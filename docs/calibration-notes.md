@@ -622,5 +622,5 @@
 - IMU yaw delta: about +8.3 deg.
 - Operator observed a recovered noisy encoder line near the same time as a USB camera timeout/crash.
 - Interpretation: the parser recovery works, but rotation is still not repeatable. The recovered encoder warning and `usb_cam` timeout appearing together suggest USB/power/load interference may be delaying or corrupting serial updates during motion.
-- Applied next action: hold `rotation_scale = 0.895`; do the next isolated rotation test with the camera node disabled or stopped so serial/encoder timing can be measured without USB camera failures in the same run.
-- Next validation: rerun one isolated +90 deg trial at the same scale with camera off, then compare physical angle and tick deltas.
+- Applied next action: add an `enable_camera` launch argument and hold `rotation_scale = 0.895`; do the next isolated rotation test with the camera node disabled so serial/encoder timing can be measured without USB camera failures in the same run.
+- Next validation: launch bringup with `enable_camera:=false`, rerun one isolated +90 deg trial at the same scale, then compare physical angle and tick deltas.

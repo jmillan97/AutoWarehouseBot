@@ -50,6 +50,7 @@ def generate_launch_description():
     serial_baud  = LaunchConfiguration('serial_baud')
     use_sim_time = LaunchConfiguration('use_sim_time')
     enable_lidar = LaunchConfiguration('enable_lidar')
+    enable_camera = LaunchConfiguration('enable_camera')
     camera_width = LaunchConfiguration('camera_width')
     camera_height = LaunchConfiguration('camera_height')
     camera_framerate = LaunchConfiguration('camera_framerate')
@@ -63,6 +64,11 @@ def generate_launch_description():
             'enable_lidar',
             default_value='true',
             description='Set false to disable RPLidar when /dev/lidar is disconnected or unstable.',
+        ),
+        DeclareLaunchArgument(
+            'enable_camera',
+            default_value='true',
+            description='Set false to disable usb_cam during motion/encoder calibration.',
         ),
         DeclareLaunchArgument('camera_width', default_value='320'),
         DeclareLaunchArgument('camera_height', default_value='240'),
@@ -211,6 +217,7 @@ def generate_launch_description():
         executable='usb_cam_node_exe',
         name='usb_cam',
         output='screen',
+        condition=IfCondition(enable_camera),
         parameters=[camera_params],
         remappings=camera_remaps,
     )
@@ -233,13 +240,15 @@ def generate_launch_description():
                     ]
                 )
             ]
-        )
+        ),
+        condition=IfCondition(enable_camera),
     )
 
     # Give USB peripherals a moment to settle before camera init.
     delayed_camera = TimerAction(
         period=0.5,
-        actions=[camera]
+        actions=[camera],
+        condition=IfCondition(enable_camera),
     )
 
     return LaunchDescription(
