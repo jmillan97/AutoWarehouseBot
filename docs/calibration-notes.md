@@ -568,3 +568,21 @@
 - Interpretation: the 0.93 trial overshot, but it is now bracketing the target with the previous 0.86 trial. Odom still overestimates physical yaw substantially during turns.
 - Applied next action: set `rotation_scale = 0.895`, interpolating between scale 0.86 -> 45 deg and scale 0.93 -> 110 deg for a target near 90 deg. Kept `rotation_speed = 80`.
 - Next validation: restart Pi bringup and rerun one isolated +90 deg trial.
+
+## 2026-04-21: Rotation Scale 0.895 Validation, +90 deg
+
+- Log folder: `calibration_logs/20260421_112611_rotation`
+- Active `rotation_scale`: `0.895`, confirmed live from `/serial_bridge`.
+- Active `rotation_speed`: `80`.
+- Active `rotation_command_interval_s`: `0.75`.
+- Commanded rotation: +90 deg.
+- Measured physical rotation: about 45 deg.
+- Operator note: undershot.
+- Direction was marked correct.
+- Encoder ticks: left -372 -> -522, right 1456 -> 1627.
+- Tick deltas: left -150, right +171.
+- Odom yaw delta: about +101.9 deg.
+- IMU yaw delta: about +10.5 deg.
+- Interpretation: this result does not fit the previous bracket cleanly. Scale 0.895 is close to 0.93, but the encoder travel was much lower than the 0.93 run, suggesting run-to-run rotation variance, floor traction, starting load, or stop/coast timing is dominating the scale estimate.
+- Applied next action: hold `rotation_scale = 0.895` and repeat one isolated +90 deg trial before changing constants again.
+- Next validation: rerun the same isolated +90 deg trial without changing code.
