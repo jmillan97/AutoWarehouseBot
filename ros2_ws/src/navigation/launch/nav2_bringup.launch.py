@@ -76,6 +76,17 @@ def generate_launch_description():
         nav2_params_file,
         {'use_sim_time': use_sim_time}
     ]
+    map_to_odom_tf = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        arguments=['0','0','0','0','0','0','map','odom']
+    )
+
+    odom_to_base_tf = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        arguments=['0','0','0','0','0','0','odom','base_link']
+    )
 
     # ── map_server ────────────────────────────────────────────────
     map_server = Node(
@@ -184,6 +195,8 @@ def generate_launch_description():
     )
 
     return LaunchDescription(args + [
+        map_to_odom_tf,
+        odom_to_base_tf,
         map_server,
         amcl,
         controller_server,

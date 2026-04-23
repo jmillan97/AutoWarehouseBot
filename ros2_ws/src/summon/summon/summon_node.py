@@ -38,6 +38,7 @@ from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from nav2_msgs.action import NavigateToPose
 from action_msgs.msg import GoalStatus
 from std_msgs.msg import String
+from summon_msgs.msg import SummonGoal, SummonStatus
 
 
 class SummonNode(Node):
@@ -73,7 +74,7 @@ class SummonNode(Node):
         # ── Subscribers ──────────────────────────────────────────
         # summon_server publishes goals here as "x,y,theta" strings
         self.create_subscription(
-            String, '/summon/goal', self._goal_callback, 10)
+            SummonGoal, '/summon/goal', self._goal_callback, 10)
 
         # ── Publishers ───────────────────────────────────────────
         self._status_pub = self.create_publisher(String, '/summon/status', 10)
@@ -126,16 +127,15 @@ class SummonNode(Node):
         )
 
     # ── Goal subscriber callback ─────────────────────────────────────────────
-    def _goal_callback(self, msg: String):
+    def _goal_callback(self, msg: SummonGoal):
         """
         Parse "x,y,theta" from /summon/goal and send to Nav2.
         Published by summon_server.py when a REST call comes in.
         """
         try:
-            parts = msg.data.strip().split(',')
-            x     = float(parts[0])
-            y     = float(parts[1])
-            theta = float(parts[2]) if len(parts) > 2 else 0.0
+            x     = msg.x
+            y     = msg.y
+            theta = msg.theta if hasattr(msg, 'theta') else 0.0
         except (ValueError, IndexError) as e:
             self.get_logger().error(f'Bad goal message [{msg.data}]: {e}')
             return

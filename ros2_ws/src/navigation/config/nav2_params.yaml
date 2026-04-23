@@ -41,6 +41,7 @@ amcl:
 
 bt_navigator:
   ros__parameters:
+    transform_tolerance: 5.0
     global_frame: map
     robot_base_frame: base_link
     odom_topic: odom
@@ -59,7 +60,7 @@ bt_navigator:
       enable_groot_monitoring: false
       groot_server_port: 1669
     bt_search_directories:
-      - $(find-pkg-share nav2_bt_navigator)/behavior_trees
+      - /opt/ros/kilted/share/nav2_bt_navigator/behavior_trees
     error_code_name_prefixes:
       - assisted_teleop
       - backup
@@ -104,8 +105,8 @@ controller_server:
 
     FollowPath:
       plugin: "nav2_mppi_controller::MPPIController"
-      time_steps: 56
-      model_dt: 0.05
+      time_steps: 28
+      model_dt: 0.1
       batch_size: 2000
       ax_max: 3.0
       ax_min: -3.0
@@ -198,6 +199,7 @@ controller_server:
 local_costmap:
   local_costmap:
     ros__parameters:
+      transform_tolerance: 5.0
       update_frequency: 5.0
       publish_frequency: 2.0
       global_frame: odom
@@ -241,6 +243,7 @@ local_costmap:
 global_costmap:
   global_costmap:
     ros__parameters:
+      transform_tolerance: 5.0
       update_frequency: 1.0
       publish_frequency: 1.0
       global_frame: map
