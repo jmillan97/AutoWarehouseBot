@@ -115,7 +115,7 @@ def generate_launch_description():
         name='controller_server',
         output='screen',
         parameters=nav2_common_params,
-        remappings=[('cmd_vel', '/cmd_vel')]
+        remappings=[('cmd_vel', 'cmd_vel_nav')]
     )
 
     # ── Planner server (SMAC lattice) ────────────────────────────
@@ -134,7 +134,7 @@ def generate_launch_description():
         name='behavior_server',
         output='screen',
         parameters=nav2_common_params,
-        remappings=[('cmd_vel', '/cmd_vel')]
+        remappings=[('cmd_vel', 'cmd_vel_nav')]
     )
 
     # ── BT Navigator ──────────────────────────────────────────────
@@ -156,9 +156,19 @@ def generate_launch_description():
         output='screen',
         parameters=nav2_common_params,
         remappings=[
-            ('cmd_vel',        '/cmd_vel_nav'),
-            ('cmd_vel_smoothed', '/cmd_vel')
+            ('cmd_vel',        'cmd_vel_nav'),
+            ('cmd_vel_smoothed', 'cmd_vel_smoothed')
         ]
+    )
+    collision_monitor = Node(
+        package='nav2_collision_monitor',
+        executable='collision_monitor',
+        name='collision_monitor',
+        output='screen',
+        parameters=[nav2_params_file,
+                    {'use_sim_time': use_sim_time}],
+        remappings=[('cmd_vel_in', 'cmd_vel_smoothed'),
+                    ('cmd_vel_out', '/cmd_vel')]
     )
 
     # ── Lifecycle manager ────────────────────────────────────────
@@ -179,6 +189,7 @@ def generate_launch_description():
                 'behavior_server',
                 'bt_navigator',
                 'velocity_smoother',
+                'collision_monitor',
             ]
         }]
     )
@@ -204,6 +215,7 @@ def generate_launch_description():
         behavior_server,
         bt_navigator,
         velocity_smoother,
+        collision_monitor,
         lifecycle_manager,
         rviz,
     ])

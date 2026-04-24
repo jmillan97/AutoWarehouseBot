@@ -41,10 +41,11 @@ amcl:
 
 bt_navigator:
   ros__parameters:
+    odom_smoothing_filter_size: 1
     transform_tolerance: 5.0
     global_frame: map
     robot_base_frame: base_link
-    odom_topic: odom
+    odom_topic: /odom
     bt_loop_duration: 10
     filter_duration: 0.3
     default_server_timeout: 20
