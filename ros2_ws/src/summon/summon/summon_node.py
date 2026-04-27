@@ -4,25 +4,15 @@ summon_node.py
 AutoWarehouseBot — ros2 branch
 Laptop / WSL2 side — runs alongside Nav2
 
-ROS2 action client that receives summon goals from summon_server.py
-and sends NavigateToPose goals to Nav2.
+Direct planner+controller version — bypasses bt_navigator entirely
+to avoid the FastDDS discovery bug in WSL2 where bt_navigator's
+internal rclcpp_node cannot discover action servers.
 
-New in hardware version:
-  - Publishes an initial pose to /initialpose on startup so AMCL
-    can localize without a manual RViz "2D Pose Estimate" click.
-    Set the initial_pose_* params to where the robot starts in your map.
-  - Exposes a /summon/goal topic so summon_server can publish goals
-    directly without the static/dynamic endpoint split.
-  - State machine: IDLE → NAVIGATING → ARRIVED/FAILED → IDLE
+Instead of NavigateToPose (bt_navigator), this node:
+  1. Calls /compute_path_to_pose (planner_server) to get a path
+  2. Calls /follow_path (controller_server) to execute the path
 
-Run:
-  ros2 run wb_summon summon_node
-
-  With custom start pose:
-  ros2 run wb_summon summon_node --ros-args \
-    -p initial_pose_x:=1.0 \
-    -p initial_pose_y:=0.5 \
-    -p initial_pose_theta:=0.0
+State machine: IDLE → NAVIGATING → ARRIVED/FAILED → IDLE
 """
 
 import math
@@ -32,13 +22,12 @@ import time
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
-from rclpy.duration import Duration
 
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
-from nav2_msgs.action import NavigateToPose
+from nav2_msgs.action import ComputePathToPose, FollowPath
 from action_msgs.msg import GoalStatus
 from std_msgs.msg import String
-from summon_msgs.msg import SummonGoal, SummonStatus
+from summon_msgs.msg import SummonGoal
 
 
 class SummonNode(Node):
@@ -47,14 +36,11 @@ class SummonNode(Node):
         super().__init__('summon_node')
 
         # ── Parameters ──────────────────────────────────────────
-        # Set these to the robot's starting position in your map.
-        # Run the SLAM mapping phase first, then note where the robot
-        # starts (usually near the origin — 0, 0, 0).
         self.declare_parameter('initial_pose_x',     0.0)
         self.declare_parameter('initial_pose_y',     0.0)
-        self.declare_parameter('initial_pose_theta', 0.0)   # radians
+        self.declare_parameter('initial_pose_theta', 0.0)
         self.declare_parameter('auto_set_initial_pose', True)
-        self.declare_parameter('initial_pose_delay_sec', 3.0)  # wait for AMCL to start
+        self.declare_parameter('initial_pose_delay_sec', 3.0)
 
         self.init_x     = self.get_parameter('initial_pose_x').value
         self.init_y     = self.get_parameter('initial_pose_y').value
@@ -68,11 +54,11 @@ class SummonNode(Node):
         self._goal_handle = None
         self._lock        = threading.Lock()
 
-        # ── Nav2 action client ───────────────────────────────────
-        self._nav_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
+        # ── Action clients (direct to planner + controller) ──────
+        self._plan_client = ActionClient(self, ComputePathToPose, 'compute_path_to_pose')
+        self._follow_client = ActionClient(self, FollowPath, 'follow_path')
 
         # ── Subscribers ──────────────────────────────────────────
-        # summon_server publishes goals here as "x,y,theta" strings
         self.create_subscription(
             SummonGoal, '/summon/goal', self._goal_callback, 10)
 
@@ -86,58 +72,45 @@ class SummonNode(Node):
             threading.Thread(target=self._delayed_initial_pose, daemon=True).start()
 
         self.get_logger().info(
-            f'Summon node initialized and IDLE. '
-            f'Start pose will be set at ({self.init_x}, {self.init_y}, {self.init_theta:.2f}rad) '
-            f'after {self.pose_delay}s delay.'
+            f'Summon node initialized (direct planner+controller mode). '
+            f'Start pose: ({self.init_x}, {self.init_y}, {self.init_theta:.2f}rad)'
         )
 
-    # ── Initial pose broadcast ───────────────────────────────────────────────
+    # ── Initial pose broadcast ───────────────────────────────────
     def _delayed_initial_pose(self):
-        """
-        Wait for AMCL to start, then publish the initial pose.
-        This replaces the manual RViz '2D Pose Estimate' click for hardware demos.
-        """
         time.sleep(self.pose_delay)
 
         msg = PoseWithCovarianceStamped()
         msg.header.stamp    = self.get_clock().now().to_msg()
         msg.header.frame_id = 'map'
-
         msg.pose.pose.position.x = self.init_x
         msg.pose.pose.position.y = self.init_y
         msg.pose.pose.position.z = 0.0
-
         msg.pose.pose.orientation.z = math.sin(self.init_theta / 2.0)
         msg.pose.pose.orientation.w = math.cos(self.init_theta / 2.0)
         msg.pose.pose.orientation.x = 0.0
         msg.pose.pose.orientation.y = 0.0
 
-        # Covariance — moderate uncertainty on x/y, low on z/roll/pitch, moderate on yaw
-        # [0]=x, [7]=y, [35]=yaw in the 6x6 flattened covariance matrix
         cov = [0.0] * 36
-        cov[0]  = 0.5   # x uncertainty [m^2]
-        cov[7]  = 0.5   # y uncertainty [m^2]
-        cov[35] = 0.26  # yaw uncertainty [rad^2] ~30 degrees
+        cov[0]  = 0.5
+        cov[7]  = 0.5
+        cov[35] = 0.26
         msg.pose.covariance = cov
 
         self._initialpose_pub.publish(msg)
         self.get_logger().info(
-            f'Published initial pose to AMCL: '
-            f'({self.init_x:.2f}, {self.init_y:.2f}, {math.degrees(self.init_theta):.1f}°)'
+            f'Published initial pose: '
+            f'({self.init_x:.2f}, {self.init_y:.2f}, {math.degrees(self.init_theta):.1f}deg)'
         )
 
-    # ── Goal subscriber callback ─────────────────────────────────────────────
+    # ── Goal subscriber callback ─────────────────────────────────
     def _goal_callback(self, msg: SummonGoal):
-        """
-        Parse "x,y,theta" from /summon/goal and send to Nav2.
-        Published by summon_server.py when a REST call comes in.
-        """
         try:
             x     = msg.x
             y     = msg.y
             theta = msg.theta if hasattr(msg, 'theta') else 0.0
         except (ValueError, IndexError) as e:
-            self.get_logger().error(f'Bad goal message [{msg.data}]: {e}')
+            self.get_logger().error(f'Bad goal message: {e}')
             return
 
         with self._lock:
@@ -145,66 +118,104 @@ class SummonNode(Node):
                 self.get_logger().warn('Already navigating — cancelling previous goal')
                 self._cancel_current()
 
-        self._send_goal(x, y, theta)
+        self._plan_and_follow(x, y, theta)
 
-    # ── Send NavigateToPose goal ─────────────────────────────────────────────
-    def _send_goal(self, x: float, y: float, theta: float):
-        self.get_logger().info(f'Waiting for Nav2 action server...')
-
-        if not self._nav_client.wait_for_server(timeout_sec=10.0):
-            self.get_logger().error('Nav2 action server not available after 10s')
+    # ── Plan then follow ─────────────────────────────────────────
+    def _plan_and_follow(self, x: float, y: float, theta: float):
+        self.get_logger().info('Waiting for planner action server...')
+        if not self._plan_client.wait_for_server(timeout_sec=10.0):
+            self.get_logger().error('Planner action server not available')
             self._transition('FAILED')
             return
-
-        goal_msg = NavigateToPose.Goal()
-        goal_msg.pose = self._make_pose(x, y, theta)
-        goal_msg.behavior_tree = ''   # use default BT
 
         self._transition('NAVIGATING')
         self.current_goal = {'x': x, 'y': y, 'theta': theta}
-        self.get_logger().info(f'Sending goal to Nav2: ({x:.2f}, {y:.2f})')
 
-        send_future = self._nav_client.send_goal_async(
-            goal_msg,
-            feedback_callback=self._feedback_callback
-        )
-        send_future.add_done_callback(self._goal_response_callback)
+        # Step 1: Compute path
+        plan_goal = ComputePathToPose.Goal()
+        plan_goal.goal = self._make_pose(x, y, theta)
+        plan_goal.planner_id = 'GridBased'
+        plan_goal.use_start = False  # use current robot pose as start
 
-    def _goal_response_callback(self, future):
+        self.get_logger().info(f'Computing path to ({x:.2f}, {y:.2f})...')
+        plan_future = self._plan_client.send_goal_async(plan_goal)
+        plan_future.add_done_callback(self._plan_response_callback)
+
+    def _plan_response_callback(self, future):
         goal_handle = future.result()
         if not goal_handle.accepted:
-            self.get_logger().error('Nav2 goal rejected!')
+            self.get_logger().error('Plan goal rejected')
             self._transition('FAILED')
             return
 
-        self.get_logger().info('Nav2 goal accepted')
-        self._goal_handle = goal_handle
-
+        self.get_logger().info('Plan goal accepted, waiting for path...')
         result_future = goal_handle.get_result_async()
-        result_future.add_done_callback(self._result_callback)
+        result_future.add_done_callback(self._plan_result_callback)
 
-    def _result_callback(self, future):
-        result   = future.result()
-        status   = result.status
+    def _plan_result_callback(self, future):
+        result = future.result()
+        if result.status != GoalStatus.STATUS_SUCCEEDED:
+            self.get_logger().error(f'Planning failed with status: {result.status}')
+            self._transition('FAILED')
+            return
 
-        if status == GoalStatus.STATUS_SUCCEEDED:
+        path = result.result.path
+        if len(path.poses) == 0:
+            self.get_logger().error('Planner returned empty path')
+            self._transition('FAILED')
+            return
+
+        self.get_logger().info(f'Path received with {len(path.poses)} poses. Following...')
+
+        # Step 2: Follow the path
+        if not self._follow_client.wait_for_server(timeout_sec=10.0):
+            self.get_logger().error('Controller action server not available')
+            self._transition('FAILED')
+            return
+
+        follow_goal = FollowPath.Goal()
+        follow_goal.path = path
+        follow_goal.controller_id = 'FollowPath'
+
+        follow_future = self._follow_client.send_goal_async(
+            follow_goal,
+            feedback_callback=self._follow_feedback_callback
+        )
+        follow_future.add_done_callback(self._follow_response_callback)
+
+    def _follow_response_callback(self, future):
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            self.get_logger().error('Follow goal rejected')
+            self._transition('FAILED')
+            return
+
+        self.get_logger().info('Controller accepted path')
+        self._goal_handle = goal_handle
+        result_future = goal_handle.get_result_async()
+        result_future.add_done_callback(self._follow_result_callback)
+
+    def _follow_result_callback(self, future):
+        result = future.result()
+        if result.status == GoalStatus.STATUS_SUCCEEDED:
             self.get_logger().info('Goal reached!')
             self._transition('ARRIVED')
-        elif status == GoalStatus.STATUS_CANCELED:
+        elif result.status == GoalStatus.STATUS_CANCELED:
             self.get_logger().info('Goal cancelled')
             self._transition('IDLE')
         else:
-            self.get_logger().warn(f'Goal failed with status: {status}')
+            self.get_logger().warn(f'Follow failed with status: {result.status}')
             self._transition('FAILED')
 
         self.current_goal = None
         self._goal_handle = None
 
-    def _feedback_callback(self, feedback_msg):
-        dist = feedback_msg.feedback.distance_remaining
-        self.get_logger().info(f'Distance remaining: {dist:.2f}m', throttle_duration_sec=2.0)
+    def _follow_feedback_callback(self, feedback_msg):
+        dist = feedback_msg.feedback.distance_to_goal
+        self.get_logger().info(
+            f'Distance remaining: {dist:.2f}m', throttle_duration_sec=2.0)
 
-    # ── Cancel ───────────────────────────────────────────────────────────────
+    # ── Cancel ───────────────────────────────────────────────────
     def _cancel_current(self):
         if self._goal_handle is not None:
             self._goal_handle.cancel_goal_async()
@@ -213,13 +224,12 @@ class SummonNode(Node):
         with self._lock:
             self._cancel_current()
 
-    # ── State machine ────────────────────────────────────────────────────────
+    # ── State machine ────────────────────────────────────────────
     def _transition(self, new_state: str):
         self.get_logger().info(f'Transition: {self.state} -> {new_state}')
         self.state = new_state
         self._publish_status()
 
-        # Auto-reset FAILED → IDLE after 5 seconds
         if new_state == 'FAILED':
             threading.Timer(5.0, lambda: self._transition('IDLE')).start()
 
@@ -228,7 +238,7 @@ class SummonNode(Node):
         msg.data = self.state
         self._status_pub.publish(msg)
 
-    # ── Helpers ──────────────────────────────────────────────────────────────
+    # ── Helpers ──────────────────────────────────────────────────
     def _make_pose(self, x: float, y: float, theta: float) -> PoseStamped:
         pose = PoseStamped()
         pose.header.stamp    = self.get_clock().now().to_msg()
@@ -242,8 +252,6 @@ class SummonNode(Node):
         pose.pose.orientation.y = 0.0
         return pose
 
-
-# ── Main ─────────────────────────────────────────────────────────────────────
 
 def main(args=None):
     rclpy.init(args=args)

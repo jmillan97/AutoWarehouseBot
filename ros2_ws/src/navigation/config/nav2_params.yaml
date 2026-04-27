@@ -41,7 +41,7 @@ amcl:
 
 bt_navigator:
   ros__parameters:
-    wait_for_service_timeout: 5000
+    wait_for_service_timeout: 120000
     odom_smoothing_filter_size: 1
     transform_tolerance: 5.0
     global_frame: map
@@ -252,7 +252,7 @@ global_costmap:
       # Valid range for this project: 0.15 (6in) to 0.30 (12in). Do not go below 0.10.
       resolution: 0.20
       track_unknown_space: true
-      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      plugins: ["obstacle_layer", "inflation_layer"]
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
