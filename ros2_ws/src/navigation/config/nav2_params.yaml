@@ -41,6 +41,7 @@ amcl:
 
 bt_navigator:
   ros__parameters:
+    wait_for_service_timeout: 5000
     odom_smoothing_filter_size: 1
     transform_tolerance: 5.0
     global_frame: map
@@ -49,17 +50,12 @@ bt_navigator:
     bt_loop_duration: 10
     filter_duration: 0.3
     default_server_timeout: 20
-    wait_for_service_timeout: 1000
     service_introspection_mode: "disabled"
-    navigators: ["navigate_to_pose", "navigate_through_poses"]
+    navigators: ["navigate_to_pose"]
     navigate_to_pose:
       plugin: "nav2_bt_navigator::NavigateToPoseNavigator"
       enable_groot_monitoring: false
       groot_server_port: 1667
-    navigate_through_poses:
-      plugin: "nav2_bt_navigator::NavigateThroughPosesNavigator"
-      enable_groot_monitoring: false
-      groot_server_port: 1669
     bt_search_directories:
       - /opt/ros/kilted/share/nav2_bt_navigator/behavior_trees
     error_code_name_prefixes:

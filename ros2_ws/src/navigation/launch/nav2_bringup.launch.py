@@ -38,7 +38,7 @@ Args:
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction
+from launch.actions import DeclareLaunchArgument, GroupAction, TimerAction, ExecuteProcess
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node, PushRosNamespace
@@ -181,18 +181,53 @@ def generate_launch_description():
         parameters=[{
             'use_sim_time':  use_sim_time,
             'autostart':     True,
+            'bond_timeout': 0.0,
             'node_names': [
                 'map_server',
                 'amcl',
                 'controller_server',
                 'planner_server',
                 'behavior_server',
-                'bt_navigator',
                 'velocity_smoother',
                 'collision_monitor',
             ]
         }]
     )
+    lifecycle_manager_bt = TimerAction(
+        period=10.0,
+        actions=[
+            Node(
+                package='nav2_lifecycle_manager',
+                executable='lifecycle_manager',
+                name='lifecycle_manager_bt',
+                output='screen',
+                parameters=[{
+                    'use_sim_time': use_sim_time,
+                    'autostart': True,
+                    'bond_timeout': 0.0,
+                    'node_names': ['bt_navigator']
+                }]
+            )
+        ]
+    )
+    lifecycle_manager_delayed = TimerAction(
+        period=3.0,
+        actions=[lifecycle_manager]
+    )
+    publish_initial_pose = TimerAction(
+        period=8.0,
+        actions=[
+            ExecuteProcess(
+                cmd=[
+                    'ros2', 'topic', 'pub', '--once', '/initialpose',
+                    'geometry_msgs/msg/PoseWithCovarianceStamped',
+                    '{"header":{"frame_id":"map"},"pose":{"pose":{"position":{"x":0.0,"y":0.0,"z":0.0},"orientation":{"x":0.0,"y":0.0,"z":0.0,"w":1.0}},"covariance":[0.5,0,0,0,0,0,0,0.5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.26]}}'
+                ],
+                output='screen'
+            )
+        ]
+    )
+   
 
     # ── RViz ──────────────────────────────────────────────────────
     rviz = Node(
@@ -213,9 +248,11 @@ def generate_launch_description():
         controller_server,
         planner_server,
         behavior_server,
-        bt_navigator,
         velocity_smoother,
         collision_monitor,
-        lifecycle_manager,
+        bt_navigator,
+        lifecycle_manager_delayed,
+        lifecycle_manager_bt,
         rviz,
+        publish_initial_pose,
     ])
