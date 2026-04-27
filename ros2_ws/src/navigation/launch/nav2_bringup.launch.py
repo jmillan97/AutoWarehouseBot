@@ -211,7 +211,7 @@ def generate_launch_description():
         ]
     )
     lifecycle_manager_delayed = TimerAction(
-        period=3.0,
+        period=5.0,
         actions=[lifecycle_manager]
     )
     publish_initial_pose = TimerAction(
