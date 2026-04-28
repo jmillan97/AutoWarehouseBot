@@ -14,10 +14,12 @@ find_package(rclcpp REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(std_msgs REQUIRED)
 
 # serial bridge
 add_executable(serial_bridge src/serial_bridge.cpp)
-ament_target_dependencies(serial_bridge rclcpp geometry_msgs std_msgs)
+ament_target_dependencies(serial_bridge rclcpp geometry_msgs std_msgs nav_msgs tf2 tf2_ros)
 install(TARGETS serial_bridge DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY
   launch
