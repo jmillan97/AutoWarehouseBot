@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod +x //wsl.localhost/Ubuntu-24.04/home/felix/warehouse_project/scripts/check_topics.sh //wsl.localhost/Ubuntu-24.04/home/felix/warehouse_project/scripts/monitor.sh //wsl.localhost/Ubuntu-24.04/home/felix/warehouse_project/scripts/view_camera.py)"
+    ]
+  }
+}

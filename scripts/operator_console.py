@@ -38,6 +38,7 @@ LOG_MAX_LINES = 200
 LIDAR_FRAME = os.environ.get('OPERATOR_LIDAR_FRAME', 'base_laser')
 CAMERA_FRAME = os.environ.get('OPERATOR_CAMERA_FRAME', 'camera_optical_link')
 OVERLAY_LOG_INTERVAL_S = 5.0
+OVERLAY_DEBUG_TEXT_COLOR = (230, 240, 255)
 
 
 class OperatorConsoleNode(Node):
@@ -64,6 +65,14 @@ class OperatorConsoleNode(Node):
             'min_range': None,
             'rate_hz': 0.0,
             'range_max': 0.0,
+        }
+        self.latest_overlay_debug = {
+            'status': 'overlay waiting',
+            'scan_points': 0,
+            'in_front': 0,
+            'projected': 0,
+            'in_bounds': 0,
+            'drawn': 0,
         }
         self.scan_arrival_times = deque(maxlen=SCAN_RATE_WINDOW)
 
@@ -201,17 +210,29 @@ class OperatorConsoleNode(Node):
             }
 
     def _draw_lidar_camera_overlay(self, frame):
+        debug = {
+            'status': 'overlay waiting',
+            'scan_points': 0,
+            'in_front': 0,
+            'projected': 0,
+            'in_bounds': 0,
+            'drawn': 0,
+        }
         with self.camera_model_lock:
             camera_model = self.camera_model
             camera_info_received = self.camera_info_received
         if not camera_info_received or camera_model is None:
             self._log_overlay_warning('camera_info', f'LiDAR overlay waiting for {CAMERA_INFO_TOPIC}')
+            self.latest_overlay_debug = debug
             return frame, 0, 'overlay waiting for camera info'
 
         with self.scan_lock:
             scan_points = list(self.latest_scan_polar)
         if not scan_points:
+            debug['status'] = 'overlay waiting for scan'
+            self.latest_overlay_debug = debug
             return frame, 0, 'overlay waiting for scan'
+        debug['scan_points'] = len(scan_points)
 
         try:
             transform = self.tf_buffer.lookup_transform(
@@ -222,6 +243,8 @@ class OperatorConsoleNode(Node):
             ).transform
         except Exception as exc:
             self._log_overlay_warning('tf', f'LiDAR overlay waiting for TF {LIDAR_FRAME} -> {CAMERA_FRAME}: {exc}')
+            debug['status'] = 'overlay waiting for tf'
+            self.latest_overlay_debug = debug
             return frame, 0, 'overlay waiting for tf'
 
         rotation = quaternion_to_matrix(
@@ -242,33 +265,45 @@ class OperatorConsoleNode(Node):
             point_camera = rotation @ point_laser + translation
             if point_camera[2] <= 0.03:
                 continue
+            debug['in_front'] += 1
             try:
                 u, v = camera_model.project3dToPixel(tuple(point_camera.tolist()))
             except Exception:
                 continue
+            debug['projected'] += 1
             if not isfinite(u) or not isfinite(v):
                 continue
             px = int(round(u))
             py = int(round(v))
             if 0 <= px < width and 0 <= py < height:
+                debug['in_bounds'] += 1
                 color = lidar_overlay_color(distance)
                 radius = 5 if distance < 0.75 else 4
                 cv2.circle(frame, (px, py), radius, color, -1, lineType=cv2.LINE_AA)
                 drawn += 1
+        debug['drawn'] = drawn
 
         if drawn > 0:
             cv2.putText(
                 frame,
-                f'LiDAR overlay: {drawn} pts',
+                f'LiDAR overlay: {drawn}/{debug["scan_points"]} pts',
                 (12, height - 14),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.55,
-                (230, 240, 255),
+                OVERLAY_DEBUG_TEXT_COLOR,
                 2,
                 cv2.LINE_AA,
             )
+            debug['status'] = 'overlay active'
+            self.latest_overlay_debug = debug
             return frame, drawn, ''
-        return frame, 0, 'overlay no visible scan points'
+        debug['status'] = (
+            f'overlay none visible '
+            f'(scan={debug["scan_points"]} front={debug["in_front"]} '
+            f'proj={debug["projected"]} in={debug["in_bounds"]})'
+        )
+        self.latest_overlay_debug = debug
+        return frame, 0, debug['status']
 
     def _results_to_detections(self, results):
         detections = []
@@ -314,6 +349,9 @@ class OperatorConsoleNode(Node):
     def get_scan_snapshot(self):
         with self.scan_lock:
             return list(self.latest_scan_points), dict(self.latest_scan_stats)
+
+    def get_overlay_debug(self):
+        return dict(self.latest_overlay_debug)
 
     def publish_move_mm(self, value: int) -> None:
         self.move_pub.publish(Int32(data=int(value)))
@@ -366,6 +404,22 @@ def format_scan_status(stats) -> str:
     return (
         f"LiDAR: {stats.get('rate_hz', 0.0):.1f} Hz avg | "
         f"{stats.get('point_count', 0)} points | nearest {min_text}"
+    )
+
+
+def format_overlay_status(debug) -> str:
+    status = debug.get('status', 'overlay waiting')
+    if status == 'overlay active':
+        return (
+            f'Overlay: active | scan {debug.get("scan_points", 0)} | '
+            f'front {debug.get("in_front", 0)} | '
+            f'in image {debug.get("in_bounds", 0)} | '
+            f'drawn {debug.get("drawn", 0)}'
+        )
+    return (
+        f'Overlay: {status} | scan {debug.get("scan_points", 0)} | '
+        f'front {debug.get("in_front", 0)} | '
+        f'in image {debug.get("in_bounds", 0)}'
     )
 
 
@@ -472,6 +526,7 @@ class OperatorConsoleApp:
         self.log_lines = []
         self.video_status_var = tk.StringVar(value='Video source: waiting')
         self.scan_status_var = tk.StringVar(value='LiDAR: waiting')
+        self.overlay_status_var = tk.StringVar(value='Overlay: waiting')
         self.distance_mm_var = tk.StringVar()
         self.rotate_deg_var = tk.StringVar()
 
@@ -502,6 +557,9 @@ class OperatorConsoleApp:
         self.video_label.grid(row=0, column=0, sticky='nsew', padx=8, pady=8)
         ttk.Label(video_frame, textvariable=self.video_status_var).grid(
             row=1, column=0, sticky='w', padx=8, pady=(0, 8)
+        )
+        ttk.Label(video_frame, textvariable=self.overlay_status_var).grid(
+            row=2, column=0, sticky='w', padx=8, pady=(0, 8)
         )
 
         scan_frame = ttk.LabelFrame(sensor_frame, text='LiDAR Scan')
@@ -626,14 +684,17 @@ class OperatorConsoleApp:
 
     def _refresh_video(self) -> None:
         frame, source = self.node.get_display_frame()
+        overlay_debug = self.node.get_overlay_debug()
         if frame is not None:
             self.video_image = bgr_to_tk_image(frame, VIDEO_SIZE)
             self.video_label.configure(image=self.video_image, text='')
             self.last_frame_time = time.time()
             self.video_status_var.set(f'Video source: {source}')
+            self.overlay_status_var.set(format_overlay_status(overlay_debug))
         elif time.time() - self.last_frame_time > 2.0:
             self.video_label.configure(text='Waiting for camera frames...', image='')
             self.video_status_var.set('Video source: waiting')
+            self.overlay_status_var.set(format_overlay_status(overlay_debug))
         self.root.after(80, self._refresh_video)
 
     def _refresh_scan(self) -> None:

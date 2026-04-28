@@ -1,0 +1,24 @@
+# Backed up from camera_calibration output on 2026-04-24.
+# Runtime copy on Pi:
+#   /home/ece_441/.ros/camera_info/default_cam.yaml
+
+image_width: 320
+image_height: 240
+camera_name: default_cam
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [322.47823156199604, 0.0, 155.29154477448733, 0.0, 321.2482878578254, 113.32322297299734, 0.0, 0.0, 1.0]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [0.006804000898055858, -0.4570843677981707, 0.0010529341563281932, -0.010306471441142783, 0.0]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [312.27267248270033, 0.0, 151.72313988003137, 0.0, 0.0, 318.85149828925506, 113.23428205210806, 0.0, 0.0, 0.0, 1.0, 0.0]
