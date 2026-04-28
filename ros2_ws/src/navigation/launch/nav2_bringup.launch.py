@@ -109,6 +109,13 @@ def generate_launch_description():
         remappings=[('cmd_vel_in', 'cmd_vel_smoothed'),
                     ('cmd_vel_out', '/cmd_vel')]
     )
+    bt_navigator = Node(
+        package='nav2_bt_navigator',
+        executable='bt_navigator',
+        name='bt_navigator',
+        output='screen',
+        parameters=nav2_common_params
+    )
 
     lifecycle_manager = Node(
         package='nav2_lifecycle_manager',
@@ -127,6 +134,7 @@ def generate_launch_description():
                 'behavior_server',
                 'velocity_smoother',
                 'collision_monitor',
+                'bt_navigator',
             ]
         }]
     )
@@ -170,6 +178,7 @@ def generate_launch_description():
         behavior_server,
         velocity_smoother,
         collision_monitor,
+        bt_navigator,
         lifecycle_manager_delayed,
         publish_initial_pose,
         rviz,

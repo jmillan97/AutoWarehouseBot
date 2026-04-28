@@ -2,15 +2,9 @@
 summon_node.py
 ==============
 AutoWarehouseBot — ros2 branch
-Laptop / WSL2 side — runs alongside Nav2
 
-Direct planner+controller version — bypasses bt_navigator entirely
-to avoid the FastDDS discovery bug in WSL2 where bt_navigator's
-internal rclcpp_node cannot discover action servers.
-
-Instead of NavigateToPose (bt_navigator), this node:
-  1. Calls /compute_path_to_pose (planner_server) to get a path
-  2. Calls /follow_path (controller_server) to execute the path
+ROS2 action client that receives summon goals from summon_server.py
+and sends NavigateToPose goals to Nav2's bt_navigator.
 
 State machine: IDLE → NAVIGATING → ARRIVED/FAILED → IDLE
 """
@@ -24,7 +18,7 @@ from rclpy.node import Node
 from rclpy.action import ActionClient
 
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
-from nav2_msgs.action import ComputePathToPose, FollowPath
+from nav2_msgs.action import NavigateToPose
 from action_msgs.msg import GoalStatus
 from std_msgs.msg import String
 from summon_msgs.msg import SummonGoal
@@ -54,9 +48,8 @@ class SummonNode(Node):
         self._goal_handle = None
         self._lock        = threading.Lock()
 
-        # ── Action clients (direct to planner + controller) ──────
-        self._plan_client = ActionClient(self, ComputePathToPose, 'compute_path_to_pose')
-        self._follow_client = ActionClient(self, FollowPath, 'follow_path')
+        # ── Nav2 action client ───────────────────────────────────
+        self._nav_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
 
         # ── Subscribers ──────────────────────────────────────────
         self.create_subscription(
@@ -72,8 +65,9 @@ class SummonNode(Node):
             threading.Thread(target=self._delayed_initial_pose, daemon=True).start()
 
         self.get_logger().info(
-            f'Summon node initialized (direct planner+controller mode). '
-            f'Start pose: ({self.init_x}, {self.init_y}, {self.init_theta:.2f}rad)'
+            f'Summon node initialized. '
+            f'Start pose: ({self.init_x}, {self.init_y}, {self.init_theta:.2f}rad) '
+            f'after {self.pose_delay}s delay.'
         )
 
     # ── Initial pose broadcast ───────────────────────────────────
@@ -118,100 +112,63 @@ class SummonNode(Node):
                 self.get_logger().warn('Already navigating — cancelling previous goal')
                 self._cancel_current()
 
-        self._plan_and_follow(x, y, theta)
+        self._send_goal(x, y, theta)
 
-    # ── Plan then follow ─────────────────────────────────────────
-    def _plan_and_follow(self, x: float, y: float, theta: float):
-        self.get_logger().info('Waiting for planner action server...')
-        if not self._plan_client.wait_for_server(timeout_sec=10.0):
-            self.get_logger().error('Planner action server not available')
+    # ── Send NavigateToPose goal ─────────────────────────────────
+    def _send_goal(self, x: float, y: float, theta: float):
+        self.get_logger().info('Waiting for Nav2 action server...')
+
+        if not self._nav_client.wait_for_server(timeout_sec=10.0):
+            self.get_logger().error('Nav2 action server not available after 10s')
             self._transition('FAILED')
             return
+
+        goal_msg = NavigateToPose.Goal()
+        goal_msg.pose = self._make_pose(x, y, theta)
+        goal_msg.behavior_tree = ''
 
         self._transition('NAVIGATING')
         self.current_goal = {'x': x, 'y': y, 'theta': theta}
+        self.get_logger().info(f'Sending goal to Nav2: ({x:.2f}, {y:.2f})')
 
-        # Step 1: Compute path
-        plan_goal = ComputePathToPose.Goal()
-        plan_goal.goal = self._make_pose(x, y, theta)
-        plan_goal.planner_id = 'GridBased'
-        plan_goal.use_start = False  # use current robot pose as start
-
-        self.get_logger().info(f'Computing path to ({x:.2f}, {y:.2f})...')
-        plan_future = self._plan_client.send_goal_async(plan_goal)
-        plan_future.add_done_callback(self._plan_response_callback)
-
-    def _plan_response_callback(self, future):
-        goal_handle = future.result()
-        if not goal_handle.accepted:
-            self.get_logger().error('Plan goal rejected')
-            self._transition('FAILED')
-            return
-
-        self.get_logger().info('Plan goal accepted, waiting for path...')
-        result_future = goal_handle.get_result_async()
-        result_future.add_done_callback(self._plan_result_callback)
-
-    def _plan_result_callback(self, future):
-        result = future.result()
-        if result.status != GoalStatus.STATUS_SUCCEEDED:
-            self.get_logger().error(f'Planning failed with status: {result.status}')
-            self._transition('FAILED')
-            return
-
-        path = result.result.path
-        if len(path.poses) == 0:
-            self.get_logger().error('Planner returned empty path')
-            self._transition('FAILED')
-            return
-
-        self.get_logger().info(f'Path received with {len(path.poses)} poses. Following...')
-
-        # Step 2: Follow the path
-        if not self._follow_client.wait_for_server(timeout_sec=10.0):
-            self.get_logger().error('Controller action server not available')
-            self._transition('FAILED')
-            return
-
-        follow_goal = FollowPath.Goal()
-        follow_goal.path = path
-        follow_goal.controller_id = 'FollowPath'
-
-        follow_future = self._follow_client.send_goal_async(
-            follow_goal,
-            feedback_callback=self._follow_feedback_callback
+        send_future = self._nav_client.send_goal_async(
+            goal_msg,
+            feedback_callback=self._feedback_callback
         )
-        follow_future.add_done_callback(self._follow_response_callback)
+        send_future.add_done_callback(self._goal_response_callback)
 
-    def _follow_response_callback(self, future):
+    def _goal_response_callback(self, future):
         goal_handle = future.result()
         if not goal_handle.accepted:
-            self.get_logger().error('Follow goal rejected')
+            self.get_logger().error('Nav2 goal rejected!')
             self._transition('FAILED')
             return
 
-        self.get_logger().info('Controller accepted path')
+        self.get_logger().info('Nav2 goal accepted')
         self._goal_handle = goal_handle
-        result_future = goal_handle.get_result_async()
-        result_future.add_done_callback(self._follow_result_callback)
 
-    def _follow_result_callback(self, future):
+        result_future = goal_handle.get_result_async()
+        result_future.add_done_callback(self._result_callback)
+
+    def _result_callback(self, future):
         result = future.result()
-        if result.status == GoalStatus.STATUS_SUCCEEDED:
+        status = result.status
+
+        if status == GoalStatus.STATUS_SUCCEEDED:
             self.get_logger().info('Goal reached!')
             self._transition('ARRIVED')
-        elif result.status == GoalStatus.STATUS_CANCELED:
+        elif status == GoalStatus.STATUS_CANCELED:
             self.get_logger().info('Goal cancelled')
             self._transition('IDLE')
         else:
-            self.get_logger().warn(f'Follow failed with status: {result.status}')
+            self.get_logger().warn(f'Goal failed with status: {status}')
             self._transition('FAILED')
 
         self.current_goal = None
         self._goal_handle = None
 
-    def _follow_feedback_callback(self, feedback_msg):
-        dist = feedback_msg.feedback.distance_to_goal
+    def _feedback_callback(self, feedback_msg):
+        dist = feedback_msg.feedback.distance_remaining
         self.get_logger().info(
             f'Distance remaining: {dist:.2f}m', throttle_duration_sec=2.0)
 
