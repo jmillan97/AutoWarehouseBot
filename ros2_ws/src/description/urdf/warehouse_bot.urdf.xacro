@@ -39,7 +39,7 @@
   <xacro:property name="wheelbase"       value="0.095"/>   <!-- front to rear axle, center to center -->
 
   <!-- LiDAR -->
-  <xacro:property name="lidar_height"    value="0.28"/>    <!-- from ground -->
+  <xacro:property name="lidar_height"    value="0.205"/>   <!-- from ground -->
   <xacro:property name="lidar_radius"    value="0.04"/>
   <xacro:property name="lidar_length"    value="0.06"/>
 
@@ -242,8 +242,8 @@
   <joint name="camera_joint" type="fixed">
     <parent link="base_link"/>
     <child  link="camera_link"/>
-    <!-- [TUNE] Update when camera mount position is finalized -->
-    <origin xyz="${chassis_length/2 - 0.01} 0 ${chassis_z + chassis_height/2}" rpy="0 0 0"/>
+    <!-- Camera is centered left/right, 10 cm forward of robot center, 8.5 cm from ground. -->
+    <origin xyz="0.10 0 0.085" rpy="0 0 0"/>
   </joint>
 
   <link name="camera_optical_link"/>
